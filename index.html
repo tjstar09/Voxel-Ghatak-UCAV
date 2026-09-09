@@ -429,7 +429,7 @@
             <span id="btn-launch-label">🛫 Launch</span>
             <span class="shortcut-badge">L</span>
           </button>
-          <button id="btn-land" class="btn" title="Land back on the carrier deck">
+          <button id="btn-land" class="btn" title="Finish this loop, then fly final over the runway and land on deck">
             <span>🛬 Land</span>
             <span class="shortcut-badge">N</span>
           </button>
@@ -1167,10 +1167,12 @@
       buildInstanced(skiMark, 0.3, materials.deckYellow, envGroup);
     }
 
-    // --- Land runway island (separate airbase strip, port side) ---
+    // --- Land runway island (airbase strip under the south approach corridor) ---
+    // Centred on x=0 so the holding pattern's south leg and the landing final
+    // fly directly over the strip (runway below the aircraft, not off to the side).
     {
-      const RW_X = -28; // island centre
-      const RW_Z = 4;
+      const RW_X = 0; // island centre (was -28: off to the side)
+      const RW_Z = -26; // south of the carrier: finals pass over the strip, then touch down on deck
       const sand = [], grass = [], asphalt = [], marks = [], edge = [], pad = [];
       // Sand + grass island platform (y shelves just above the ocean)
       for (let ix = -14; ix <= 14; ix++) {
@@ -1619,7 +1621,7 @@
 
       activeProjectiles.push({
         mesh: projRoot,
-        velocity: new THREE.Vector3(0, -0.08, 0.25),
+        velocity: new THREE.Vector3(0, -0.05, 0.25), // gentle separation: clears deck/runway from altitude
         boostDir: boostDir,
         stage: 'drop', // 'drop' -> 'boost'
         age: 0,
@@ -1788,14 +1790,26 @@
       controls.target.copy(initialTarget);
     });
 
-    // 11B. Flight: Launch -> fly circuit, Hold -> freeze midair, Land -> back on deck
+    // 11B. Flight: Launch -> takeoff roll & climb, loop the range, Hold -> freeze midair,
+    // Land -> finish the current loop first, then fly a final approach over the runway
+    // and touch down on the carrier deck (no more snap-to-deck teleport).
     // Existing features (Fire / Explode / Views / Bay) stay usable while HOLDING midair.
-    let flightMode = 'parked'; // 'parked' | 'flying' | 'holding'
+    let flightMode = 'parked'; // 'parked' | 'takeoff' | 'flying' | 'holding' | 'landing'
+    let landingPhase = 'circuit'; // 'circuit' (finish the loop) | 'final' (approach curve)
+    let pendingLanding = false; // landing requested during takeoff -> start it once airborne
     let flightT = 0;
-    let flightBlend = 0; // 0 = on deck, 1 = airborne (smooth takeoff/landing)
+    let flightBlend = 0; // 0 = on deck, 1 = airborne (takeoff climb only; landing uses the curve)
+    let takeoffT = 0;
+    let takeoffJoinT = 0;
+    let landingU = 0;
+    let landingCurve = null;
     const FLIGHT_RADIUS = 19;
-    const FLIGHT_ALT = 5.5;
+    const FLIGHT_ALT = 9; // raised so the missile drop phase clears deck & runway
     const FLIGHT_SPEED = 0.32; // rad/sec
+    const PARKED_POS = new THREE.Vector3(0, -3.45, 0); // belly rests just above the deck voxels
+    const LAND_GATE = Math.PI * 1.5; // west point: heading +Z up the runway/deck corridor
+    const TAKEOFF_TIME = 3.4; // seconds: deck roll + climb-out
+    const FINAL_TIME = 7.0; // seconds: short final to touchdown
 
     const btnLaunch = document.getElementById('btn-launch');
     const btnLaunchLabel = document.getElementById('btn-launch-label');
@@ -1803,27 +1817,90 @@
     const flightStatusEl = document.getElementById('flight-status');
 
     function updateFlightUI() {
+      btnLand.classList.remove('active');
       if (flightMode === 'parked') {
         btnLaunchLabel.textContent = '🛫 Launch';
         btnLaunch.classList.remove('active', 'holding');
         flightStatusEl.textContent = 'PARKED ON DECK';
-      } else if (flightMode === 'flying') {
-        btnLaunchLabel.textContent = '⏸ Hold';
+      } else if (flightMode === 'takeoff') {
+        btnLaunchLabel.textContent = '🛫 Taking off…';
         btnLaunch.classList.add('active');
         btnLaunch.classList.remove('holding');
-        flightStatusEl.textContent = 'AIRBORNE // FLYING';
-      } else {
+        flightStatusEl.textContent = 'TAKEOFF ROLL // CLIMBING';
+      } else if (flightMode === 'flying') {
+        btnLaunchLabel.textContent = pendingLanding ? '🛬 Landing queued…' : '⏸ Hold';
+        btnLaunch.classList.add('active');
+        btnLaunch.classList.remove('holding');
+        flightStatusEl.textContent = pendingLanding ? 'FINAL LAP // LANDING AFTER LOOP' : 'AIRBORNE // FLYING';
+      } else if (flightMode === 'holding') {
         btnLaunchLabel.textContent = '▶ Resume';
         btnLaunch.classList.remove('active');
         btnLaunch.classList.add('holding');
         flightStatusEl.textContent = 'HOLDING MIDAIR // SYSTEMS FREE';
+      } else { // landing
+        btnLand.classList.add('active');
+        btnLaunchLabel.textContent = landingPhase === 'final' ? '🛬 On final…' : '🛬 Landing… (final lap)';
+        btnLaunch.classList.remove('active', 'holding');
+        flightStatusEl.textContent = landingPhase === 'final' ? 'ON FINAL // TOUCHDOWN' : 'FINAL LAP // LANDING AFTER LOOP';
       }
+    }
+
+    function circleYaw(t) {
+      // Heading tangent to the holding circle (model nose faces +Z)
+      return Math.atan2(Math.cos(t), -Math.sin(t));
+    }
+
+    function beginFinalApproach() {
+      // Gate -> over the runway strip -> short final -> touchdown -> settle on deck
+      const gate = flightPathPos(LAND_GATE, new THREE.Vector3());
+      landingCurve = new THREE.CatmullRomCurve3([
+        gate.clone(),
+        new THREE.Vector3(-6, 6, -24), // downwind, over the runway island
+        new THREE.Vector3(0, 2, -14), // over the runway north threshold
+        new THREE.Vector3(0, PARKED_POS.y + 0.9, -6), // short final, descending
+        new THREE.Vector3(0, PARKED_POS.y, 0.8), // touchdown on deck
+        PARKED_POS.clone(), // settle parked
+      ], false, 'centripetal');
+      landingU = 0;
+      landingPhase = 'final';
+      showBanner('ON FINAL // OVER THE RUNWAY - TOUCHDOWN', 2600);
+      updateFlightUI();
+    }
+
+    function startLandingCircuit() {
+      flightMode = 'landing';
+      landingPhase = 'circuit';
+      pendingLanding = false;
+      showBanner('LANDING QUEUED // COMPLETING THIS LOOP FIRST', 2600);
+      updateFlightUI();
+    }
+
+    function requestLanding() {
+      if (flightMode === 'parked') {
+        showBanner('ALREADY ON DECK // PRESS LAUNCH (L) FIRST', 1800);
+        return;
+      }
+      if (flightMode === 'takeoff') {
+        pendingLanding = true; // finish the climb, then go straight to the landing circuit
+        showBanner('CLIMBING // LANDING QUEUED AFTER THIS LOOP', 2200);
+        updateFlightUI();
+        return;
+      }
+      if (flightMode === 'landing') {
+        showBanner(landingPhase === 'final' ? 'ON FINAL // TOUCHDOWN IMMINENT' : 'ALREADY ON FINAL LAP // HOLDING PATTERN', 1800);
+        return;
+      }
+      if (flightMode === 'holding') flightMode = 'flying'; // resume so it can fly the final lap
+      startLandingCircuit();
     }
 
     function setFlightMode(mode) {
       if (mode === 'flying' && flightMode === 'parked') {
-        flightMode = 'flying';
-        showBanner('GHATAK LAUNCHED // AIRBORNE - PRESS HOLD TO FREEZE MIDAIR', 2600);
+        // Launch: deck roll from PARKED_POS, then climb to join the loop
+        flightMode = 'takeoff';
+        takeoffT = 0;
+        takeoffJoinT = flightT;
+        showBanner('GHATAK LAUNCHED // ROLLING - THEN CLIMB-OUT', 2600);
       } else if (mode === 'flying' && flightMode === 'holding') {
         flightMode = 'flying';
         showBanner('RESUMING FLIGHT // HOLD (L) TO FREEZE FOR WEAPONS CHECK', 2000);
@@ -1831,9 +1908,8 @@
         flightMode = 'holding';
         showBanner('HOLDING MIDAIR // FIRE (F) & EXPLODE (E) NOW FREE', 2400);
       } else if (mode === 'parked') {
-        if (flightMode === 'parked') return;
-        flightMode = 'parked';
-        showBanner('RECOVERING // LANDING ON CARRIER DECK', 2200);
+        requestLanding();
+        return;
       }
       updateFlightUI();
     }
@@ -1841,11 +1917,13 @@
     function toggleLaunchHold() {
       if (flightMode === 'parked') setFlightMode('flying');
       else if (flightMode === 'flying') setFlightMode('holding');
-      else setFlightMode('flying');
+      else if (flightMode === 'holding') setFlightMode('flying');
+      else showBanner(flightMode === 'takeoff' ? 'TAKEOFF IN PROGRESS // WAIT FOR CLIMB-OUT' : 'LANDING IN PROGRESS // WAIT FOR TOUCHDOWN', 1800);
     }
 
     btnLaunch.addEventListener('click', toggleLaunchHold);
     btnLand.addEventListener('click', () => setFlightMode('parked'));
+    jetRoot.position.copy(PARKED_POS);
     updateFlightUI();
 
     function flightPathPos(t, out) {
@@ -1936,20 +2014,79 @@
         Object.values(subassemblies).forEach(grp => grp.position.set(0, 0, 0));
       }
 
-      // Launch / Hold / Land flight path (circular holding pattern over the range)
-      if (flightMode === 'flying') flightT += 0.016 * FLIGHT_SPEED;
-      const targetBlend = flightMode === 'parked' ? 0 : 1;
-      flightBlend += (targetBlend - flightBlend) * 0.03;
-      if (Math.abs(targetBlend - flightBlend) < 0.001) flightBlend = targetBlend;
-      if (flightBlend > 0.001) {
+      // Flight state machine: takeoff roll -> loop -> (hold) -> final lap -> approach -> touchdown
+      if (flightMode === 'takeoff') {
+        takeoffT += 0.016 / TAKEOFF_TIME;
+        const p = Math.min(takeoffT, 1);
+        const s = p * p * (3 - 2 * p); // smoothstep: roll, rotate, climb
+        flightBlend = s;
+        flightPathPos(takeoffJoinT, _flightPos);
+        jetRoot.position.lerpVectors(PARKED_POS, _flightPos, s);
+        jetRoot.position.y += Math.sin(p * Math.PI) * 1.4; // climb arc
+        jetRoot.position.z += Math.sin(p * Math.PI) * 2.0; // deck-roll push toward the bow
+        jetRoot.rotation.y = circleYaw(takeoffJoinT) * s;
+        jetRoot.rotation.z = -0.22 * s;
+        jetRoot.rotation.x = -0.18 * Math.sin(p * Math.PI); // nose-up on climb-out
+        if (takeoffT >= 1) {
+          flightMode = 'flying';
+          flightBlend = 1;
+          jetRoot.rotation.x = 0;
+          if (pendingLanding) startLandingCircuit();
+          else {
+            showBanner('AIRBORNE // HOLD (L) TO FREEZE MIDAIR FOR WEAPONS CHECK', 2400);
+            updateFlightUI();
+          }
+        }
+      } else if (flightMode === 'flying' || flightMode === 'holding') {
+        if (flightMode === 'flying') flightT += 0.016 * FLIGHT_SPEED;
+        flightBlend = 1;
         flightPathPos(flightT, _flightPos);
         flightPathPos(flightT + 0.05, _flightNext);
-        jetRoot.position.lerpVectors(new THREE.Vector3(0, 0, 0), _flightPos, flightBlend);
-        const yaw = Math.atan2(_flightNext.x - _flightPos.x, _flightNext.z - _flightPos.z);
-        jetRoot.rotation.y = yaw * flightBlend;
-        jetRoot.rotation.z = -0.22 * flightBlend;
+        jetRoot.position.copy(_flightPos);
+        jetRoot.rotation.y = Math.atan2(_flightNext.x - _flightPos.x, _flightNext.z - _flightPos.z);
+        jetRoot.rotation.z = -0.22;
+        jetRoot.rotation.x = 0;
+      } else if (flightMode === 'landing') {
+        if (landingPhase === 'circuit') {
+          // Finish the current loop: keep flying until the landing gate, then turn final
+          flightT += 0.016 * FLIGHT_SPEED;
+          const TWO_PI = Math.PI * 2;
+          let remaining = (LAND_GATE - flightT) % TWO_PI;
+          if (remaining < 0) remaining += TWO_PI;
+          if (remaining < 0.016 * FLIGHT_SPEED * 1.5 + 0.004) {
+            flightT = LAND_GATE;
+            beginFinalApproach();
+          } else {
+            flightPathPos(flightT, _flightPos);
+            flightPathPos(flightT + 0.05, _flightNext);
+            jetRoot.position.copy(_flightPos);
+            jetRoot.rotation.y = Math.atan2(_flightNext.x - _flightPos.x, _flightNext.z - _flightPos.z);
+            jetRoot.rotation.z = -0.22;
+            jetRoot.rotation.x = 0;
+          }
+        } else if (landingCurve) {
+          // Short final: glide over the runway, flare, touch down, settle parked
+          landingU += 0.016 / FINAL_TIME;
+          const u = Math.min(landingU, 1);
+          const s = u * u * (3 - 2 * u);
+          landingCurve.getPoint(s, _flightPos);
+          jetRoot.position.copy(_flightPos);
+          const tan = landingCurve.getTangent(s, _flightNext);
+          jetRoot.rotation.y = Math.atan2(tan.x, tan.z);
+          jetRoot.rotation.z = -0.22 * (1 - s);
+          jetRoot.rotation.x = 0.12 * Math.sin(s * Math.PI); // glide in, flare to level at touchdown
+          if (landingU >= 1) {
+            flightMode = 'parked';
+            flightBlend = 0;
+            landingCurve = null;
+            jetRoot.position.copy(PARKED_POS);
+            jetRoot.rotation.set(0, 0, 0);
+            showBanner('TOUCHDOWN // GHATAK RECOVERED ON DECK', 2400);
+            updateFlightUI();
+          }
+        }
       } else {
-        jetRoot.position.set(0, 0, 0);
+        jetRoot.position.copy(PARKED_POS);
         jetRoot.rotation.set(0, 0, 0);
       }
 
@@ -2041,7 +2178,7 @@
         if (p.stage === 'drop') {
           p.velocity.y -= 0.012;
           p.mesh.position.add(p.velocity);
-          if (p.age > 0.3) {
+          if (p.age > 0.25) {
             p.stage = 'boost';
             p.velocity.copy(p.boostDir).multiplyScalar(0.85);
             p.velocity.y += 0.06;
