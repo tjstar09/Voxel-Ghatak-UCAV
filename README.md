@@ -1,5 +1,12 @@
-# Indian Fighter jet 3D model - Ghatak UCAV
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/f6114852-5ee4-413f-a53a-c886aaf473ff
 
 ## Run Locally
 

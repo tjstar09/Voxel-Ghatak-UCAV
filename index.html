@@ -344,7 +344,7 @@
           <span class="jet-tag">SWiFT STEALTH</span>
         </div>
         <div class="jet-spec">
-          Autonomous Stealth Flying-Wing Combat Jet • Kaveri Dry Turbofan • Twin Internal Weapons Bay • Smart Anti-Airfield Weapon (SAAW)
+          Autonomous Stealth Flying-Wing Combat Jet • Kaveri Dry Turbofan • Twin Internal Weapons Bay • SAAW Live-Fire Range • Voxel Carrier Deck, Airbase, Wingmen & Target Bunker
         </div>
       </div>
 
@@ -392,6 +392,10 @@
           <button id="btn-flir" class="btn" title="Toggle FLIR Wireframe Targeting">
             <span>🛰️ EO/IR</span>
             <span class="shortcut-badge">S</span>
+          </button>
+          <button id="btn-env" class="btn active" title="Toggle Voxel Environment (deck, base, clouds, wingmen)">
+            <span>🏝️ Scenery</span>
+            <span class="shortcut-badge">V</span>
           </button>
           <button id="btn-reset" class="btn" title="Reset Camera">
             <span>🎯 Reset</span>
@@ -622,6 +626,36 @@
       formationSlime: new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x16a34a, emissiveIntensity: 2.0 }),
       navRed: new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff1111, emissiveIntensity: 2.5 }),
       navGreen: new THREE.MeshStandardMaterial({ color: 0x22ff44, emissive: 0x11ff22, emissiveIntensity: 2.5 }),
+      // Voxel environment palette
+      deckDark: new THREE.MeshStandardMaterial({ color: 0x1a2029, roughness: 0.85, metalness: 0.25 }),
+      deckLight: new THREE.MeshStandardMaterial({ color: 0x2b3442, roughness: 0.8, metalness: 0.3 }),
+      deckYellow: new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6, emissive: 0x713f12, emissiveIntensity: 0.25 }),
+      deckWhite: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.7 }),
+      edgeCyan: new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x0891b2, emissiveIntensity: 2.2 }),
+      edgeOrange: new THREE.MeshStandardMaterial({ color: 0xfb923c, emissive: 0xea580c, emissiveIntensity: 1.8 }),
+      oceanBlue: new THREE.MeshStandardMaterial({ color: 0x0c4a6e, roughness: 0.35, metalness: 0.55, transparent: true, opacity: 0.92 }),
+      oceanFoam: new THREE.MeshStandardMaterial({ color: 0xbae6fd, roughness: 0.6 }),
+      rockDark: new THREE.MeshStandardMaterial({ color: 0x3f3f46, roughness: 0.95 }),
+      rockMid: new THREE.MeshStandardMaterial({ color: 0x57534e, roughness: 0.9 }),
+      snowCap: new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.55 }),
+      cloudWhite: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.9, transparent: true, opacity: 0.92 }),
+      cloudShade: new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.9, transparent: true, opacity: 0.9 }),
+      towerGray: new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6, metalness: 0.5 }),
+      radarWhite: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4, metalness: 0.3 }),
+      radarRed: new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x991b1b, emissiveIntensity: 1.2 }),
+      hangarGreen: new THREE.MeshStandardMaterial({ color: 0x365314, roughness: 0.8, metalness: 0.2 }),
+      barrelRust: new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.7, metalness: 0.3 }),
+      barrelBlue: new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.6 }),
+      tentTan: new THREE.MeshStandardMaterial({ color: 0xa8a29e, roughness: 0.85 }),
+      targetRed: new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.6 }),
+      targetWhite: new THREE.MeshStandardMaterial({ color: 0xfef2f2, roughness: 0.6 }),
+      flameOrange: new THREE.MeshBasicMaterial({ color: 0xfb923c, transparent: true, opacity: 0.9 }),
+      flameYellow: new THREE.MeshBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.95 }),
+      flameBlue: new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 }),
+      smokeVoxel: new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.5 }),
+      debrisDark: new THREE.MeshBasicMaterial({ color: 0x334155 }),
+      starWhite: new THREE.MeshBasicMaterial({ color: 0xe2e8f0 }),
+      beaconRed: new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff0000, emissiveIntensity: 3.0 }),
     };
 
     // 6. High-Density Voxel Builder with 10x Block Count (~8,500 - 10,000 Voxels)
@@ -978,9 +1012,402 @@
     createDoorMesh(doorVoxelsLeft, bayDoorLeft, -7);
     createDoorMesh(doorVoxelsRight, bayDoorRight, 7);
 
-    // Telemetry Count
-    const totalRenderedVoxels = totalVoxelCount + doorVoxelsLeft.length + doorVoxelsRight.length;
-    document.getElementById('voxel-count').textContent = totalRenderedVoxels.toLocaleString();
+    // Telemetry Count (updated later after environment build)
+    let envVoxelCount = 0;
+    function updateVoxelTelemetry() {
+      const totalRenderedVoxels = totalVoxelCount + doorVoxelsLeft.length + doorVoxelsRight.length + envVoxelCount;
+      document.getElementById('voxel-count').textContent = totalRenderedVoxels.toLocaleString();
+    }
+
+    // 7H. VOXEL ENVIRONMENT — carrier deck, ocean, mountains, clouds, airbase, stars, target range, wingmen, exhaust
+    const envGroup = new THREE.Group();
+    scene.add(envGroup);
+    const dummyEnv = new THREE.Object3D();
+    function buildInstanced(voxels, boxSize, material, parent) {
+      if (!voxels.length) return null;
+      const geo = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
+      const inst = new THREE.InstancedMesh(geo, material, voxels.length);
+      inst.castShadow = true;
+      inst.receiveShadow = true;
+      for (let i = 0; i < voxels.length; i++) {
+        dummyEnv.position.set(voxels[i][0], voxels[i][1], voxels[i][2]);
+        dummyEnv.rotation.set(0, 0, 0);
+        dummyEnv.updateMatrix();
+        inst.setMatrixAt(i, dummyEnv.matrix);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      parent.add(inst);
+      envVoxelCount += voxels.length;
+      return inst;
+    }
+
+    // --- Carrier / runway deck ---
+    const deckGroup = new THREE.Group();
+    deckGroup.position.y = -4.55;
+    envGroup.add(deckGroup);
+    {
+      const E = 0.55;
+      const dark = [], light = [], yellow = [], white = [], cyan = [], orange = [];
+      for (let ix = -17; ix <= 17; ix++) {
+        for (let iz = -13; iz <= 13; iz++) {
+          const x = ix * E, z = iz * E;
+          const checker = (ix + iz) % 2 === 0;
+          (checker ? dark : light).push([x, 0, z]);
+          if (ix === 0 && iz % 2 === 0) yellow.push([x, 0.32, z]);
+          if (ix === 0 && iz % 2 !== 0) white.push([x, 0.32, z]);
+          if ((ix === -17 || ix === 17) && iz % 2 === 0) white.push([x, 0.32, z]);
+        }
+      }
+      // Edge lights
+      for (let iz = -13; iz <= 13; iz++) {
+        const z = iz * E;
+        cyan.push([-18 * E, 0.35, z]);
+        orange.push([18 * E, 0.35, z]);
+      }
+      for (let ix = -17; ix <= 17; ix += 2) {
+        cyan.push([ix * E, 0.35, -14 * E]);
+        cyan.push([ix * E, 0.35, 14 * E]);
+      }
+      buildInstanced(dark, E * 0.96, materials.deckDark, deckGroup);
+      buildInstanced(light, E * 0.96, materials.deckLight, deckGroup);
+      buildInstanced(yellow, E * 0.42, materials.deckYellow, deckGroup);
+      buildInstanced(white, E * 0.42, materials.deckWhite, deckGroup);
+      buildInstanced(cyan, 0.22, materials.edgeCyan, deckGroup);
+      buildInstanced(orange, 0.22, materials.edgeOrange, deckGroup);
+    }
+
+    // --- Voxel ocean swells around deck ---
+    const oceanGroup = new THREE.Group();
+    envGroup.add(oceanGroup);
+    let oceanInst = null;
+    const oceanBase = [];
+    {
+      const foam = [], blue = [];
+      for (let i = 0; i < 260; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 13 + Math.random() * 30;
+        const x = Math.cos(a) * r, z = Math.sin(a) * r;
+        if (Math.abs(x) < 11 && Math.abs(z) < 9) continue; // keep deck clear
+        oceanBase.push({ x, z, phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 0.9 });
+        if (Math.random() > 0.82) foam.push([x, -4.62, z]);
+        else blue.push([x, -4.72, z]);
+      }
+      buildInstanced(blue, 0.85, materials.oceanBlue, oceanGroup);
+      buildInstanced(foam, 0.5, materials.oceanFoam, oceanGroup);
+      const waveGeo = new THREE.BoxGeometry(0.7, 0.35, 0.7);
+      oceanInst = new THREE.InstancedMesh(waveGeo, materials.oceanBlue, oceanBase.length);
+      oceanInst.receiveShadow = true;
+      oceanGroup.add(oceanInst);
+      envVoxelCount += oceanBase.length;
+    }
+
+    // --- Voxel mountain ring ---
+    {
+      const peaks = [
+        { angle: 2.6, dist: 38, h: 9, w: 7 },
+        { angle: 3.1, dist: 42, h: 12, w: 8 },
+        { angle: 3.7, dist: 39, h: 8, w: 6 },
+        { angle: 0.6, dist: 40, h: 10, w: 7 },
+        { angle: -0.5, dist: 37, h: 7, w: 6 },
+        { angle: 1.8, dist: 44, h: 11, w: 8 },
+      ];
+      const rockD = [], rockM = [], snow = [];
+      peaks.forEach(p => {
+        const cx = Math.cos(p.angle) * p.dist, cz = Math.sin(p.angle) * p.dist;
+        for (let y = 0; y < p.h; y++) {
+          const rad = Math.max(1, Math.round(p.w * (1 - y / p.h)));
+          for (let dx = -rad; dx <= rad; dx++) {
+            for (let dz = -rad; dz <= rad; dz++) {
+              if (Math.max(Math.abs(dx), Math.abs(dz)) !== rad) continue;
+              if (Math.random() > 0.75) continue;
+              const vy = -4.5 + y * 0.62;
+              const arr = y > p.h - 3 ? snow : (Math.random() > 0.5 ? rockD : rockM);
+              arr.push([cx + dx * 0.62, vy, cz + dz * 0.62]);
+            }
+          }
+          rockM.push([cx, -4.5 + y * 0.62, cz]);
+        }
+      });
+      buildInstanced(rockD, 0.6, materials.rockDark, envGroup);
+      buildInstanced(rockM, 0.6, materials.rockMid, envGroup);
+      buildInstanced(snow, 0.6, materials.snowCap, envGroup);
+    }
+
+    // --- Voxel clouds (drifting groups) ---
+    const cloudGroups = [];
+    {
+      const defs = [
+        { x: -22, y: 10, z: -14, s: 1.2, speed: 0.35 },
+        { x: 18, y: 12, z: -20, s: 1.5, speed: 0.28 },
+        { x: 26, y: 9, z: 10, s: 1.0, speed: 0.42 },
+        { x: -26, y: 11, z: 12, s: 1.35, speed: 0.31 },
+        { x: 0, y: 14, z: -30, s: 1.7, speed: 0.22 },
+        { x: -8, y: 8.5, z: 24, s: 0.9, speed: 0.48 },
+        { x: 12, y: 13, z: 26, s: 1.1, speed: 0.38 },
+      ];
+      defs.forEach(d => {
+        const g = new THREE.Group();
+        g.position.set(d.x, d.y, d.z);
+        const w = [], sh = [];
+        const n = 28 + Math.floor(Math.random() * 14);
+        for (let i = 0; i < n; i++) {
+          const px = (Math.random() - 0.5) * 6 * d.s;
+          const py = (Math.random() - 0.5) * 1.6 * d.s;
+          const pz = (Math.random() - 0.5) * 3.2 * d.s;
+          const puff = Math.abs(px) + Math.abs(py) * 2 + Math.abs(pz);
+          if (puff > 4.2 * d.s) continue;
+          (py < -0.3 ? sh : w).push([px, py, pz]);
+        }
+        const before = envVoxelCount;
+        buildInstanced(w, 0.85, materials.cloudWhite, g);
+        buildInstanced(sh, 0.85, materials.cloudShade, g);
+        g.userData = { speed: d.speed, baseY: d.y, phase: Math.random() * 6.28, count: envVoxelCount - before };
+        envGroup.add(g);
+        cloudGroups.push(g);
+      });
+    }
+
+    // --- Voxel airbase props on deck edges ---
+    let radarDish = null;
+    let beaconLight = null;
+    let beaconMesh = null;
+    {
+      const base = new THREE.Group();
+      envGroup.add(base);
+      const tower = [], glass = [], hangar = [], crates = [], barrelsR = [], barrelsB = [], tents = [], poles = [], lamps = [];
+      // Control tower (port side rear)
+      const tx = -11.5, tz = -7.5;
+      for (let y = 0; y < 8; y++) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) tower.push([tx + dx * 0.5, -4.2 + y * 0.5, tz + dz * 0.5]);
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) glass.push([tx + dx * 0.5, -4.2 + 8 * 0.5, tz + dz * 0.5]);
+      // Hangar (starboard rear)
+      const hx = 11.8, hz = -7.8;
+      for (let dx = -4; dx <= 4; dx++) for (let y = 0; y < 4; y++) {
+        const arch = Math.abs(dx) + y <= 6 ? 1 : 0;
+        if (!arch) continue;
+        for (let dz = -3; dz <= 3; dz++) {
+          if (y === 0 || Math.abs(dx) === 4 - y || y === 3) hangar.push([hx + dx * 0.55, -4.2 + y * 0.55, hz + dz * 0.55]);
+        }
+      }
+      // Fuel barrels + crates + tents (deck corners)
+      const barrelSpots = [[-9, 6.5], [-8.2, 6.5], [-8.6, 5.7], [9.2, 6.2], [9.9, 6.4]];
+      barrelSpots.forEach(([bx, bz], idx) => {
+        for (let y = 0; y < 2; y++) (idx % 2 ? barrelsR : barrelsB).push([bx, -4.1 + y * 0.5, bz]);
+      });
+      for (let i = 0; i < 8; i++) crates.push([7.5 + (i % 4) * 0.55, -4.15 + Math.floor(i / 4) * 0.55, 5.8]);
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -1; dz <= 1; dz++) tents.push([-6 + dx * 0.55, -4.0 + (1 - Math.abs(dx) * 0.25), 6.6 + dz * 0.55]);
+      // Light poles
+      for (let k = -2; k <= 2; k++) {
+        const px = k * 7;
+        for (let y = 0; y < 6; y++) poles.push([px, -4.2 + y * 0.5, -8.6]);
+        lamps.push([px, -4.2 + 6 * 0.5, -8.6]);
+        for (let y = 0; y < 6; y++) poles.push([px, -4.2 + y * 0.5, 8.6]);
+        lamps.push([px, -4.2 + 6 * 0.5, 8.6]);
+      }
+      buildInstanced(tower, 0.48, materials.towerGray, base);
+      buildInstanced(glass, 0.48, materials.eotsGlass, base);
+      buildInstanced(hangar, 0.53, materials.hangarGreen, base);
+      buildInstanced(crates, 0.53, materials.tentTan, base);
+      buildInstanced(barrelsR, 0.48, materials.barrelRust, base);
+      buildInstanced(barrelsB, 0.48, materials.barrelBlue, base);
+      buildInstanced(tents, 0.53, materials.tentTan, base);
+      buildInstanced(poles, 0.22, materials.towerGray, base);
+      buildInstanced(lamps, 0.3, materials.edgeCyan, base);
+
+      // Radar mast + rotating dish (animated group)
+      const mast = [];
+      for (let y = 0; y < 7; y++) mast.push([-13.2, -4.2 + y * 0.5, 2.5]);
+      buildInstanced(mast, 0.4, materials.towerGray, base);
+      const dishGroup = new THREE.Group();
+      dishGroup.position.set(-13.2, -4.2 + 7 * 0.5 + 0.3, 2.5);
+      base.add(dishGroup);
+      const dishVox = [];
+      for (let dx = -3; dx <= 3; dx++) for (let dy = -1; dy <= 2; dy++) {
+        if (dx * dx + dy * dy * 2 <= 8) dishVox.push([dx * 0.32, dy * 0.32, 0]);
+      }
+      dishVox.push([0, -0.5, 0]);
+      const dishGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+      const dishInst = new THREE.InstancedMesh(dishGeo, materials.radarWhite, dishVox.length);
+      dishVox.forEach((v, i) => {
+        dummyEnv.position.set(v[0], v[1], v[2]);
+        dummyEnv.updateMatrix();
+        dishInst.setMatrixAt(i, dummyEnv.matrix);
+      });
+      dishGroup.add(dishInst);
+      envVoxelCount += dishVox.length + 1;
+      radarDish = dishGroup;
+
+      // Tower beacon (pulsing red voxel)
+      beaconMesh = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), materials.beaconRed);
+      beaconMesh.position.set(tx, -4.2 + 9 * 0.5, tz);
+      base.add(beaconMesh);
+      beaconLight = new THREE.PointLight(0xff2222, 2.0, 10);
+      beaconLight.position.copy(beaconMesh.position);
+      base.add(beaconLight);
+      envVoxelCount += 1;
+    }
+
+    // --- Voxel starfield dome ---
+    {
+      const stars = [];
+      for (let i = 0; i < 320; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.random() * Math.PI * 0.45 + 0.08;
+        const r = 110 + Math.random() * 50;
+        stars.push([Math.cos(theta) * Math.cos(phi) * r, Math.sin(phi) * r * 0.7 + 4, Math.sin(theta) * Math.cos(phi) * r]);
+      }
+      const g = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+      const inst = new THREE.InstancedMesh(g, materials.starWhite, stars.length);
+      stars.forEach((v, i) => {
+        dummyEnv.position.set(v[0], v[1], v[2]);
+        dummyEnv.updateMatrix();
+        inst.setMatrixAt(i, dummyEnv.matrix);
+      });
+      inst.instanceFrustumCulled = false;
+      envGroup.add(inst);
+      envVoxelCount += stars.length;
+    }
+
+    // --- Voxel target range ahead (+Z) ---
+    const targetPos = new THREE.Vector3(0, -3.4, 46);
+    let targetGroup = null;
+    {
+      targetGroup = new THREE.Group();
+      targetGroup.position.copy(targetPos);
+      envGroup.add(targetGroup);
+      const red = [], white = [], dark = [];
+      for (let dx = -4; dx <= 4; dx++) for (let dy = 0; dy < 5; dy++) for (let dz = -1; dz <= 1; dz++) {
+        const ring = Math.max(Math.abs(dx) - 1, Math.abs(dy - 2));
+        if (ring % 2 === 0) red.push([dx * 0.55, dy * 0.55, dz * 0.55]);
+        else white.push([dx * 0.55, dy * 0.55, dz * 0.55]);
+      }
+      for (let dx = -6; dx <= 6; dx++) dark.push([dx * 0.55, -0.3, 0]);
+      for (let dx = -6; dx <= 6; dx += 3) dark.push([dx * 0.55, -0.85, 0]);
+      buildInstanced(red, 0.53, materials.targetRed, targetGroup);
+      buildInstanced(white, 0.53, materials.targetWhite, targetGroup);
+      buildInstanced(dark, 0.53, materials.deckDark, targetGroup);
+      const mk = [];
+      for (let k = -2; k <= 2; k++) mk.push([k * 4, -3.9 - targetPos.y, -8]);
+      buildInstanced(mk, 0.4, materials.deckYellow, targetGroup);
+    }
+
+    // --- Voxel wingmen (2 mini delta jets in formation) ---
+    const wingmen = [];
+    function buildWingman(side) {
+      const g = new THREE.Group();
+      const body = [], edge = [], glow = [];
+      for (let gz = 8; gz >= -6; gz--) {
+        const w = Math.floor(1 + (8 - gz) * 0.7);
+        for (let dx = -w; dx <= w; dx++) {
+          const isEdge = Math.abs(dx) === w;
+          (isEdge ? edge : body).push([dx * 0.32, 0, gz * 0.32]);
+          (isEdge ? edge : body).push([dx * 0.32, 0.32, gz * 0.32]);
+        }
+      }
+      body.push([0, 0.64, 4 * 0.32]);
+      glow.push([0, 0.15, -6.6 * 0.32]);
+      glow.push([side * 8 * 0.32, 0.15, -1 * 0.32]);
+      buildInstanced(body, 0.3, materials.ramMedium, g);
+      buildInstanced(edge, 0.3, materials.stealthFacet, g);
+      buildInstanced(glow, 0.22, side < 0 ? materials.navRed : materials.navGreen, g);
+      g.position.set(side * 9, 1.6, -3);
+      g.rotation.y = Math.PI;
+      envGroup.add(g);
+      wingmen.push({ group: g, side, phase: side * 1.7 });
+      return g;
+    }
+    buildWingman(-1);
+    buildWingman(1);
+
+    // --- Voxel engine exhaust plume (attached to engine subassembly) ---
+    const exhaustVoxels = [];
+    {
+      const plumeGeo = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+      const layers = [
+        { mat: materials.flameBlue, z: -21.6, n: 5, spread: 1.6 },
+        { mat: materials.flameYellow, z: -22.8, n: 4, spread: 1.2 },
+        { mat: materials.flameOrange, z: -24.0, n: 4, spread: 1.6 },
+        { mat: materials.smokeVoxel, z: -25.4, n: 3, spread: 2.0 },
+      ];
+      layers.forEach(L => {
+        for (let i = 0; i < L.n; i++) {
+          const m = new THREE.Mesh(plumeGeo, L.mat);
+          const ox = (i - (L.n - 1) / 2) * 0.35 * L.spread;
+          m.position.set(ox * V_STEP * 3, 1 * V_STEP, L.z * V_STEP);
+          m.userData = { baseX: m.position.x, baseZ: m.position.z, layer: L.z, idx: i };
+          subassemblies.engine.add(m);
+          exhaustVoxels.push(m);
+          envVoxelCount += 1;
+        }
+      });
+    }
+
+    // --- Voxel contrail pool from wingtips ---
+    const contrailPool = [];
+    const contrailGeo = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+    for (let i = 0; i < 70; i++) {
+      const m = new THREE.Mesh(contrailGeo, materials.cloudWhite.clone());
+      m.material.opacity = 0;
+      m.visible = false;
+      m.userData = { life: 0 };
+      scene.add(m);
+      contrailPool.push(m);
+    }
+    let contrailCursor = 0;
+    function spawnContrail(x, y, z) {
+      const m = contrailPool[contrailCursor];
+      contrailCursor = (contrailCursor + 1) % contrailPool.length;
+      m.visible = true;
+      m.position.set(x, y, z);
+      m.scale.setScalar(0.6);
+      m.material.opacity = 0.55;
+      m.userData.life = 1.0;
+    }
+
+    // --- Voxel explosion debris system ---
+    const debrisPool = [];
+    const debrisGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+    const debrisMats = [materials.flameOrange, materials.flameYellow, materials.debrisDark, materials.smokeVoxel, materials.targetRed];
+    for (let i = 0; i < 110; i++) {
+      const m = new THREE.Mesh(debrisGeo, debrisMats[i % debrisMats.length].clone());
+      m.visible = false;
+      m.userData = { vel: new THREE.Vector3(), life: 0, spin: new THREE.Vector3() };
+      scene.add(m);
+      debrisPool.push(m);
+    }
+    const shockRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.5, 1.0, 40),
+      new THREE.MeshBasicMaterial({ color: 0xfdba74, transparent: true, opacity: 0, side: THREE.DoubleSide })
+    );
+    shockRing.position.copy(targetPos);
+    shockRing.position.y += 1.5;
+    scene.add(shockRing);
+    let shockLife = 0;
+    const boomLight = new THREE.PointLight(0xff7700, 0, 30);
+    boomLight.position.copy(targetPos);
+    boomLight.position.y += 2;
+    scene.add(boomLight);
+    function spawnVoxelExplosion(pos) {
+      let n = 0;
+      for (const m of debrisPool) {
+        if (m.visible) continue;
+        m.visible = true;
+        m.position.copy(pos);
+        m.position.x += (Math.random() - 0.5) * 1.5;
+        m.position.y += Math.random() * 1.5;
+        m.position.z += (Math.random() - 0.5) * 1.5;
+        m.userData.vel.set((Math.random() - 0.5) * 0.55, Math.random() * 0.55 + 0.15, (Math.random() - 0.5) * 0.55);
+        m.userData.spin.set(Math.random() * 8, Math.random() * 8, Math.random() * 8);
+        m.userData.life = 1.0 + Math.random() * 0.6;
+        m.scale.setScalar(0.6 + Math.random() * 1.1);
+        m.material.opacity = 1.0;
+        if (++n >= 46) break;
+      }
+      shockLife = 1.0;
+      boomLight.intensity = 26;
+      showBanner('TARGET DESTROYED // DIRECT SAAW HIT', 2200);
+    }
+
+    updateVoxelTelemetry();
 
     // 8. Active Missiles Projectile System (Fire Simulation)
     const activeProjectiles = [];
@@ -1160,6 +1587,7 @@
     const btnBay = document.getElementById('btn-bay');
     const btnAutoRotate = document.getElementById('btn-autorotate');
     const btnFlir = document.getElementById('btn-flir');
+    const btnEnv = document.getElementById('btn-env');
     const btnReset = document.getElementById('btn-reset');
     const fpsVal = document.getElementById('fps-val');
 
@@ -1197,6 +1625,13 @@
       }
     });
 
+    btnEnv.addEventListener('click', () => {
+      envGroup.visible = !envGroup.visible;
+      exhaustVoxels.forEach(m => { m.visible = envGroup.visible; });
+      btnEnv.classList.toggle('active', envGroup.visible);
+      showBanner(envGroup.visible ? 'VOXEL SCENERY ONLINE // RANGE ACTIVE' : 'VOXEL SCENERY OFF // CLEAN SKY', 1800);
+    });
+
     btnReset.addEventListener('click', () => {
       setCameraView('orbit');
       controls.reset();
@@ -1222,6 +1657,8 @@
         btnAutoRotate.click();
       } else if (key === 's') {
         btnFlir.click();
+      } else if (key === 'v') {
+        btnEnv.click();
       }
     });
 
@@ -1291,9 +1728,69 @@
       bayDoorLeft.rotation.z = -doorAngle;
       bayDoorRight.rotation.z = doorAngle;
 
-      // Kaveri Engine Pulse & Light Glow
+      // Kaveri Engine Pulse & Light Glow + voxel plume flicker
       const exhaustPulse = 1.0 + Math.sin(elapsedTime * 18.0) * 0.15;
       engineThrustLight.intensity = 2.4 + Math.sin(elapsedTime * 24.0) * 0.6;
+      for (let i = 0; i < exhaustVoxels.length; i++) {
+        const ev = exhaustVoxels[i];
+        const flick = 0.75 + Math.abs(Math.sin(elapsedTime * 22 + i * 1.7)) * 0.7;
+        ev.scale.setScalar(flick * (ev.userData.layer < -24 ? 1.25 : 1.0));
+        ev.position.x = ev.userData.baseX + Math.sin(elapsedTime * 15 + i) * 0.04;
+      }
+
+      // Voxel ocean swell bobbing
+      if (oceanInst) {
+        for (let i = 0; i < oceanBase.length; i++) {
+          const ob = oceanBase[i];
+          dummyEnv.position.set(ob.x, -4.72 + Math.sin(elapsedTime * ob.speed + ob.phase) * 0.16, ob.z);
+          dummyEnv.updateMatrix();
+          oceanInst.setMatrixAt(i, dummyEnv.matrix);
+        }
+        oceanInst.instanceMatrix.needsUpdate = true;
+      }
+
+      // Voxel clouds drift + bob
+      for (const cg of cloudGroups) {
+        cg.position.x += cg.userData.speed * 0.016;
+        if (cg.position.x > 34) cg.position.x = -34;
+        cg.position.y = cg.userData.baseY + Math.sin(elapsedTime * 0.5 + cg.userData.phase) * 0.35;
+      }
+
+      // Radar dish sweep + tower beacon pulse
+      if (radarDish) radarDish.rotation.y = elapsedTime * 1.4;
+      if (beaconMesh) {
+        const bp = 0.6 + Math.abs(Math.sin(elapsedTime * 3.2)) * 0.9;
+        beaconMesh.scale.setScalar(bp);
+        beaconLight.intensity = 1.0 + Math.abs(Math.sin(elapsedTime * 3.2)) * 2.4;
+      }
+
+      // Wingmen formation bobbing
+      for (const w of wingmen) {
+        w.group.position.y = 1.6 + Math.sin(elapsedTime * 1.6 + w.phase) * 0.18 + jetModel.position.y * 0.6;
+        w.group.position.z = -3 + Math.sin(elapsedTime * 0.7 + w.phase) * 0.4;
+        w.group.rotation.z = Math.sin(elapsedTime * 0.9 + w.phase) * 0.03;
+      }
+
+      // Target bunker gentle hover marker + shock decay
+      if (targetGroup) targetGroup.position.y = targetPos.y + Math.sin(elapsedTime * 1.2) * 0.08;
+
+      // Wingtip voxel contrails (emit while flying level)
+      if (!isExploded && Math.random() > 0.55) {
+        const tipL = new THREE.Vector3(-35 * V_STEP, 0.4, 0);
+        const tipR = new THREE.Vector3(35 * V_STEP, 0.4, 0);
+        jetModel.localToWorld(tipL);
+        jetModel.localToWorld(tipR);
+        spawnContrail(tipL.x, tipL.y, tipL.z);
+        spawnContrail(tipR.x, tipR.y, tipR.z);
+      }
+      for (const c of contrailPool) {
+        if (!c.visible) continue;
+        c.userData.life -= 0.02;
+        c.scale.addScalar(0.03);
+        c.material.opacity = Math.max(0, c.userData.life * 0.5);
+        c.position.z -= 0.02;
+        if (c.userData.life <= 0) c.visible = false;
+      }
 
       // Projectiles Physics & Smoke Trails
       for (let i = activeProjectiles.length - 1; i >= 0; i--) {
@@ -1322,11 +1819,50 @@
           }
         }
 
+        // Voxel target impact check
+        const distToTarget = p.mesh.position.distanceTo(targetPos);
+        if (p.stage === 'boost' && distToTarget < 2.6) {
+          spawnVoxelExplosion(targetPos.clone().add(new THREE.Vector3(0, 1.5, 0)));
+          scene.remove(p.mesh);
+          activeProjectiles.splice(i, 1);
+          continue;
+        }
+
         // Remove projectile once out of combat zone
         if (p.mesh.position.z > 95 || p.age > 4.5) {
+          if (p.mesh.position.z > 60 && p.stage === 'boost') {
+            spawnVoxelExplosion(p.mesh.position.clone());
+          }
           scene.remove(p.mesh);
           activeProjectiles.splice(i, 1);
         }
+      }
+
+      // Voxel debris physics
+      for (let i = debrisPool.length - 1; i >= 0; i--) {
+        const d = debrisPool[i];
+        if (!d.visible) continue;
+        d.userData.life -= 0.022;
+        d.userData.vel.y -= 0.02;
+        d.position.add(d.userData.vel);
+        d.rotation.x += d.userData.spin.x * 0.016;
+        d.rotation.y += d.userData.spin.y * 0.016;
+        const s = d.scale.x;
+        d.scale.setScalar(Math.max(0.05, s - 0.012));
+        if (d.material.opacity !== undefined) d.material.opacity = Math.max(0, Math.min(1, d.userData.life));
+        if (d.userData.life <= 0 || d.position.y < -4.6) d.visible = false;
+      }
+      // Shockwave ring + boom light decay
+      if (shockLife > 0) {
+        shockLife -= 0.03;
+        const k = 1 - shockLife;
+        shockRing.scale.setScalar(1 + k * 14);
+        shockRing.material.opacity = Math.max(0, shockLife * 0.8);
+        shockRing.lookAt(camera.position);
+        boomLight.intensity = Math.max(0, shockLife * 26);
+      } else {
+        shockRing.material.opacity = 0;
+        boomLight.intensity = Math.max(0, boomLight.intensity - 1.2);
       }
 
       // Update Smoke Particles
