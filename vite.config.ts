@@ -66,6 +66,9 @@ function aistudioMediaPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
+    // Project-site base so built asset URLs work under
+    // https://<user>.github.io/Voxel-Ghatak-UCAV/
+    base: '/Voxel-Ghatak-UCAV/',
     plugins: [react(), tailwindcss(), aistudioMediaPlugin()],
     resolve: {
       alias: {
