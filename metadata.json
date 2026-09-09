@@ -1,0 +1,6 @@
+{
+  "name": "3D Voxel Fighter Jet",
+  "description": "Interactive 3D voxel model of the DRDO Ghatak UCAV, India's planned autonomous stealth flying-wing combat jet with OrbitControls and auto-rotation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

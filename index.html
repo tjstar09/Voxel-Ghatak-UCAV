@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Voxel Fighter Jet</title>
+  <meta name="description" content="High-detail 3D voxel model of India's DRDO Ghatak UCAV with 10x block density, engine view, top view, front view, explode view, and interactive missile firing." />
+  <meta property="og:title" content="3D Voxel Fighter Jet" />
+  <meta property="og:description" content="High-detail 3D voxel model of India's DRDO Ghatak UCAV with 10x block density, engine view, top view, front view, explode view, and interactive missile firing." />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@latest/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@latest/examples/jsm/",
+        "three/examples/jsm/": "https://unpkg.com/three@latest/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      background: #090c10;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      color: #e2e8f0;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    .hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .title-box {
+      background: rgba(13, 17, 23, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(14px);
+      padding: 16px 20px;
+      border-radius: 12px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      max-width: 440px;
+      pointer-events: auto;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #38bdf8;
+      margin-bottom: 6px;
+    }
+    .roundel-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #ff9933;
+      position: relative;
+    }
+    .roundel-icon::before {
+      content: '';
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: #ffffff;
+      position: absolute;
+    }
+    .roundel-icon::after {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #138808;
+      position: absolute;
+    }
+    .jet-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #f8fafc;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .jet-tag {
+      font-size: 10px;
+      font-weight: 700;
+      background: rgba(249, 115, 22, 0.2);
+      color: #fb923c;
+      border: 1px solid rgba(249, 115, 22, 0.4);
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.06em;
+    }
+    .jet-spec {
+      font-size: 11.5px;
+      color: #94a3b8;
+      margin-top: 5px;
+      line-height: 1.45;
+    }
+    .controls-container {
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      background: rgba(13, 17, 23, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      padding: 6px;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    .group-label {
+      align-self: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0 6px;
+    }
+    .btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #cbd5e1;
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 7px 13px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.18s ease;
+      white-space: nowrap;
+    }
+    .btn:hover {
+      background: rgba(51, 65, 85, 0.95);
+      border-color: rgba(56, 189, 248, 0.5);
+      color: #38bdf8;
+      transform: translateY(-1px);
+    }
+    .btn:active {
+      transform: translateY(1px);
+    }
+    .btn.active {
+      background: rgba(14, 165, 233, 0.25);
+      border-color: #38bdf8;
+      color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+    .btn-fire {
+      background: linear-gradient(135deg, rgba(225, 29, 72, 0.85), rgba(234, 88, 12, 0.85));
+      border: 1px solid rgba(255, 120, 120, 0.5);
+      color: #ffffff;
+      font-weight: 700;
+      box-shadow: 0 4px 16px rgba(225, 29, 72, 0.4);
+    }
+    .btn-fire:hover {
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.95), rgba(249, 115, 22, 0.95));
+      border-color: #ffffff;
+      color: #ffffff;
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.7);
+    }
+    .btn-fire.firing {
+      animation: pulse-fire 0.4s ease;
+    }
+    @keyframes pulse-fire {
+      0% { transform: scale(1); }
+      50% { transform: scale(0.92); }
+      100% { transform: scale(1); }
+    }
+    .btn-explode.active {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: #f59e0b;
+      color: #fbbf24;
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.4);
+    }
+    .shortcut-badge {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 9.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #94a3b8;
+    }
+    .btn.active .shortcut-badge {
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+    .btn-explode.active .shortcut-badge {
+      border-color: rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+    }
+    .btn-fire .shortcut-badge {
+      background: rgba(0, 0, 0, 0.3);
+      color: #ffffff;
+    }
+    .hud-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .instruction-bar {
+      background: rgba(13, 17, 23, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      padding: 10px 16px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11.5px;
+      color: #cbd5e1;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+    }
+    .instruction-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .kbd {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10.5px;
+      color: #38bdf8;
+    }
+    .telemetry {
+      background: rgba(13, 17, 23, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      display: flex;
+      gap: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+      flex-wrap: wrap;
+    }
+    .telemetry-val {
+      color: #38bdf8;
+      font-weight: 700;
+    }
+    .telemetry-tag {
+      color: #10b981;
+      font-weight: 700;
+    }
+    .telemetry-alert {
+      color: #f43f5e;
+      font-weight: 700;
+    }
+    #combat-banner {
+      position: absolute;
+      top: 105px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(225, 29, 72, 0.9);
+      border: 1px solid #fda4af;
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #ffffff;
+      text-transform: uppercase;
+      box-shadow: 0 4px 20px rgba(225, 29, 72, 0.6);
+      opacity: 0;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+    }
+    #combat-banner.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(4px);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="combat-banner">SAAW MISSILE 01 LAUNCHED // BOOST PHASE</div>
+
+  <div class="hud">
+    <div class="hud-top">
+      <div class="title-box">
+        <div class="status-badge">
+          <span class="roundel-icon"></span>
+          DRDO ADE // INDIAN AIR FORCE
+        </div>
+        <div class="jet-title">
+          GHATAK UCAV
+          <span class="jet-tag">SWiFT STEALTH</span>
+        </div>
+        <div class="jet-spec">
+          Autonomous Stealth Flying-Wing Combat Jet • Kaveri Dry Turbofan • Twin Internal Weapons Bay • Smart Anti-Airfield Weapon (SAAW)
+        </div>
+      </div>
+
+      <div class="controls-container">
+        <!-- Camera Views -->
+        <div class="btn-group">
+          <span class="group-label">Views</span>
+          <button id="view-orbit" class="btn active" title="Default 3/4 Orbit Perspective">
+            <span>🌐 Orbit</span>
+            <span class="shortcut-badge">1</span>
+          </button>
+          <button id="view-front" class="btn" title="Head-on Front Stealth Aspect">
+            <span>🛡️ Front</span>
+            <span class="shortcut-badge">2</span>
+          </button>
+          <button id="view-top" class="btn" title="Top-down Flying-Wing Planform">
+            <span>📐 Top</span>
+            <span class="shortcut-badge">3</span>
+          </button>
+          <button id="view-engine" class="btn" title="Close-up Shielded Kaveri Exhaust">
+            <span>🔥 Engine</span>
+            <span class="shortcut-badge">4</span>
+          </button>
+          <button id="btn-explode" class="btn btn-explode" title="Explode Airframe Components">
+            <span>💥 Explode</span>
+            <span class="shortcut-badge">E</span>
+          </button>
+        </div>
+
+        <!-- Combat & Subsystems -->
+        <div class="btn-group">
+          <span class="group-label">Actions</span>
+          <button id="btn-fire" class="btn btn-fire" title="Launch DRDO SAAW Smart Glide Missile">
+            <span>🚀 Fire SAAW</span>
+            <span class="shortcut-badge">F / Space</span>
+          </button>
+          <button id="btn-bay" class="btn" title="Toggle Internal Weapons Bay Doors">
+            <span>🚪 Bay Doors</span>
+            <span class="shortcut-badge">B</span>
+          </button>
+          <button id="btn-autorotate" class="btn active" title="Toggle Orbit Auto-Rotation">
+            <span>🔄 Auto Rotate</span>
+            <span class="shortcut-badge">R</span>
+          </button>
+          <button id="btn-flir" class="btn" title="Toggle FLIR Wireframe Targeting">
+            <span>🛰️ EO/IR</span>
+            <span class="shortcut-badge">S</span>
+          </button>
+          <button id="btn-reset" class="btn" title="Reset Camera">
+            <span>🎯 Reset</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="instruction-bar">
+        <div class="instruction-item">
+          <span class="kbd">Left Drag</span>
+          <span>Rotate</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">Scroll</span>
+          <span>Zoom</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">Right Drag</span>
+          <span>Pan</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">F / Space</span>
+          <span>Fire Missile</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">1-4</span>
+          <span>Switch Camera Views</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">E</span>
+          <span>Explode Airframe</span>
+        </div>
+      </div>
+
+      <div class="telemetry">
+        <div>ENGINE: <span class="telemetry-val">Kaveri Dry (48 kN)</span></div>
+        <div>RCS: <span class="telemetry-tag">&lt; 0.001 m²</span></div>
+        <div>PAYLOAD: <span class="telemetry-val" id="bay-status">Bay Closed // 2x SAAW Ready</span></div>
+        <div>BLOCK COUNT: <span class="telemetry-val" id="voxel-count">Computing...</span></div>
+        <div>FPS: <span class="telemetry-val" id="fps-val">60</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@latest/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@latest/examples/jsm/controls/OrbitControls.js';
+
+    // 1. Web Audio Synthesizer for Authentic Missile Launch Sound
+    let audioCtx = null;
+    function playMissileSound() {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        const now = audioCtx.currentTime;
+
+        // Ejection thud / pneumatic whoosh
+        const osc = audioCtx.createOscillator();
+        const oscGain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.exponentialRampToValueAtTime(35, now + 0.35);
+        oscGain.gain.setValueAtTime(0.45, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.connect(oscGain);
+        oscGain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.36);
+
+        // Rocket booster thrust noise roar
+        const bufferSize = audioCtx.sampleRate * 1.2;
+        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = noiseBuffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(450, now);
+        filter.frequency.exponentialRampToValueAtTime(1400, now + 0.2);
+        filter.frequency.exponentialRampToValueAtTime(250, now + 1.2);
+        filter.Q.setValueAtTime(3.0, now);
+
+        const noiseGain = audioCtx.createGain();
+        noiseGain.gain.setValueAtTime(0.01, now);
+        noiseGain.gain.linearRampToValueAtTime(0.5, now + 0.15);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        noiseGain.connect(audioCtx.destination);
+        noise.start(now);
+        noise.stop(now + 1.25);
+      } catch (err) {
+        // AudioContext silent fallback if user has not interacted
+      }
+    }
+
+    // 2. Three.js Scene, Camera, & Renderer
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x090c10);
+    scene.fog = new THREE.FogExp2(0x090c10, 0.02);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const initialCamPos = new THREE.Vector3(18, 12, 22);
+    const initialTarget = new THREE.Vector3(0, 0.2, 0);
+    camera.position.copy(initialCamPos);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 1.2;
+    controls.maxPolarAngle = Math.PI / 2 + 0.05;
+    controls.minDistance = 4;
+    controls.maxDistance = 60;
+    controls.target.copy(initialTarget);
+
+    // 3. Lighting Setup
+    const ambientLight = new THREE.AmbientLight(0x8898aa, 1.25);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfffbf0, 2.5);
+    sunLight.position.set(28, 36, 22);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 1;
+    sunLight.shadow.camera.far = 90;
+    sunLight.shadow.camera.left = -22;
+    sunLight.shadow.camera.right = 22;
+    sunLight.shadow.camera.top = 22;
+    sunLight.shadow.camera.bottom = -22;
+    sunLight.shadow.bias = -0.0003;
+    scene.add(sunLight);
+
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.3);
+    rimLight.position.set(-24, 14, -24);
+    scene.add(rimLight);
+
+    const groundReflect = new THREE.DirectionalLight(0x1e293b, 0.85);
+    groundReflect.position.set(0, -15, 0);
+    scene.add(groundReflect);
+
+    // 4. Ground Shadow Plane & Tactical Radar Rings
+    const shadowPlaneGeo = new THREE.PlaneGeometry(90, 90);
+    const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.48 });
+    const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = -4.5;
+    shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
+
+    const runwayGroup = new THREE.Group();
+    runwayGroup.position.y = -4.48;
+
+    const ringMat1 = new THREE.MeshBasicMaterial({ color: 0x1e293b, side: THREE.DoubleSide });
+    const ring1 = new THREE.Mesh(new THREE.RingGeometry(9, 9.12, 64), ringMat1);
+    ring1.rotation.x = -Math.PI / 2;
+    runwayGroup.add(ring1);
+
+    const ringMat2 = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28, side: THREE.DoubleSide });
+    const ring2 = new THREE.Mesh(new THREE.RingGeometry(16, 16.2, 64), ringMat2);
+    ring2.rotation.x = -Math.PI / 2;
+    runwayGroup.add(ring2);
+
+    const gridHelper = new THREE.GridHelper(50, 50, 0x334155, 0x161f2e);
+    gridHelper.position.y = -4.49;
+    scene.add(gridHelper);
+    scene.add(runwayGroup);
+
+    // 5. Materials Palette
+    const materials = {
+      ramDark: new THREE.MeshStandardMaterial({ color: 0x1c212a, roughness: 0.6, metalness: 0.4 }),
+      ramMedium: new THREE.MeshStandardMaterial({ color: 0x272d38, roughness: 0.52, metalness: 0.42 }),
+      ramLight: new THREE.MeshStandardMaterial({ color: 0x363e4d, roughness: 0.46, metalness: 0.45 }),
+      stealthFacet: new THREE.MeshStandardMaterial({ color: 0x14171d, roughness: 0.72, metalness: 0.35 }),
+      serration: new THREE.MeshStandardMaterial({ color: 0x0c0e12, roughness: 0.9, metalness: 0.2 }),
+      // Indian Air Force Roundel & Fin Flash
+      iafSaffron: new THREE.MeshStandardMaterial({ color: 0xff9933, roughness: 0.38, metalness: 0.2 }),
+      iafWhite: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35, metalness: 0.15 }),
+      iafGreen: new THREE.MeshStandardMaterial({ color: 0x138808, roughness: 0.38, metalness: 0.2 }),
+      iafNavy: new THREE.MeshStandardMaterial({ color: 0x000080, roughness: 0.3, metalness: 0.4 }),
+      // EO/IR Sapphire Sensor
+      eotsGlass: new THREE.MeshPhysicalMaterial({
+        color: 0x0284c7,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.5,
+        roughness: 0.08,
+        metalness: 0.92,
+        transparent: true,
+        opacity: 0.88,
+      }),
+      eotsTurret: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.32, metalness: 0.8 }),
+      // Kaveri Turbofan & Flat 2D Nozzle
+      titaniumAlloy: new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.26, metalness: 0.85 }),
+      exhaustShield: new THREE.MeshStandardMaterial({ color: 0x181c24, roughness: 0.75, metalness: 0.3 }),
+      thermalGlow: new THREE.MeshBasicMaterial({ color: 0x38bdf8 }),
+      turbineCore: new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.2, metalness: 0.9 }),
+      // Weapons Bay & DRDO SAAW Guided Bombs
+      bayInterior: new THREE.MeshStandardMaterial({ color: 0x161b22, roughness: 0.78, metalness: 0.3 }),
+      bombBody: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.32, metalness: 0.25 }),
+      bombBand: new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 }),
+      bombFin: new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.35 }),
+      bombSeeker: new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2, emissive: 0xb91c1c, emissiveIntensity: 0.3 }),
+      // Formation low-observable lighting
+      formationSlime: new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x16a34a, emissiveIntensity: 2.0 }),
+      navRed: new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff1111, emissiveIntensity: 2.5 }),
+      navGreen: new THREE.MeshStandardMaterial({ color: 0x22ff44, emissive: 0x11ff22, emissiveIntensity: 2.5 }),
+    };
+
+    // 6. High-Density Voxel Builder with 10x Block Count (~8,500 - 10,000 Voxels)
+    // Using InstancedMesh per sub-assembly and material for extreme 60+ FPS performance!
+    const V_STEP = 0.2; // 0.20 unit grid spacing gives 10x voxel count
+    const voxelBoxGeo = new THREE.BoxGeometry(V_STEP, V_STEP, V_STEP);
+
+    const jetRoot = new THREE.Group();
+    scene.add(jetRoot);
+
+    const jetModel = new THREE.Group();
+    jetRoot.add(jetModel);
+
+    // Sub-assemblies for Explode View
+    const subassemblies = {
+      nose: new THREE.Group(),
+      intakeSpine: new THREE.Group(),
+      coreFuselage: new THREE.Group(),
+      wingLeft: new THREE.Group(),
+      wingRight: new THREE.Group(),
+      elevonsLeft: new THREE.Group(),
+      elevonsRight: new THREE.Group(),
+      engine: new THREE.Group(),
+      weaponsBay: new THREE.Group(),
+    };
+
+    Object.values(subassemblies).forEach(grp => jetModel.add(grp));
+
+    // Staging arrays to collect voxels before instancing
+    const voxelRegistry = [];
+    let totalVoxelCount = 0;
+
+    function registerVoxel(subKey, gx, gy, gz, matKey) {
+      voxelRegistry.push({ subKey, gx, gy, gz, matKey });
+      totalVoxelCount++;
+    }
+
+    function registerVoxelSym(subKey, gx, gy, gz, matKey) {
+      if (gx === 0) {
+        registerVoxel(subKey, 0, gy, gz, matKey);
+      } else {
+        if (subKey === 'wing') {
+          registerVoxel('wingRight', gx, gy, gz, matKey);
+          registerVoxel('wingLeft', -gx, gy, gz, matKey);
+        } else if (subKey === 'elevons') {
+          registerVoxel('elevonsRight', gx, gy, gz, matKey);
+          registerVoxel('elevonsLeft', -gx, gy, gz, matKey);
+        } else {
+          registerVoxel(subKey, gx, gy, gz, matKey);
+          registerVoxel(subKey, -gx, gy, gz, matKey);
+        }
+      }
+    }
+
+    // === 6A. NOSE RADOME & CHIN EOTS SENSOR (~1,200 voxels) ===
+    // Sharp faceted stealth radome with radar-scattering edges
+    for (let gz = 32; gz >= 22; gz--) {
+      const span = Math.floor((33 - gz) * 0.48);
+      const height = Math.floor((33 - gz) * 0.28);
+      for (let gx = -span; gx <= span; gx++) {
+        for (let gy = -height; gy <= height; gy++) {
+          let mat = 'ramMedium';
+          if (gz === 32 || Math.abs(gx) === span || Math.abs(gy) === height) mat = 'stealthFacet';
+          if (gy < -height * 0.6) mat = 'ramDark';
+          registerVoxel('nose', gx, gy, gz, mat);
+        }
+      }
+    }
+
+    // Titanium Pitot Boom on tip
+    for (let gz = 33; gz <= 37; gz++) {
+      registerVoxel('nose', 0, 0, gz, 'titaniumAlloy');
+    }
+
+    // EO/IR (EOTS) Sapphire Chin Turret under radome
+    for (let gz = 27; gz >= 23; gz--) {
+      for (let gx = -2; gx <= 2; gx++) {
+        for (let gy = -3; gy <= -1; gy++) {
+          const isGlass = (gz >= 25 && gy === -3);
+          registerVoxel('nose', gx, gy, gz, isGlass ? 'eotsGlass' : 'eotsTurret');
+        }
+      }
+    }
+
+    // === 6B. DORSAL S-DUCT INTAKE SCOPE, SATCOM & DORSAL SPINE (~1,800 voxels) ===
+    // Flush top-mounted stealth intake to hide Kaveri fan blades
+    for (let gz = 21; gz >= 8; gz--) {
+      // Intake outer cowl lips
+      const lipWidth = 6;
+      for (let gx = -lipWidth; gx <= lipWidth; gx++) {
+        for (let gy = 1; gy <= 4; gy++) {
+          const isInterior = Math.abs(gx) <= 4 && gy >= 1 && gy <= 3 && gz >= 10;
+          if (isInterior) {
+            // Hollow air duct with serpentine titanium compressor face at rear
+            if (gz === 10) {
+              registerVoxel('intakeSpine', gx, gy, gz, 'turbineCore');
+            } else if (gz >= 19 && gy === 1) {
+              registerVoxel('intakeSpine', gx, gy, gz, 'serration');
+            }
+          } else {
+            let mat = 'ramMedium';
+            if (gy === 4) mat = 'ramLight';
+            if (Math.abs(gx) === lipWidth) mat = 'stealthFacet';
+            registerVoxel('intakeSpine', gx, gy, gz, mat);
+          }
+        }
+      }
+    }
+
+    // Conformal SATCOM Antenna & Spine behind intake
+    for (let gz = 7; gz >= -8; gz--) {
+      for (let gx = -4; gx <= 4; gx++) {
+        for (let gy = 2; gy <= 5; gy++) {
+          const dist = Math.sqrt((gx / 4.2) ** 2 + ((gy - 2) / 3.2) ** 2);
+          if (dist <= 1.0) {
+            let mat = (dist > 0.75) ? 'ramLight' : 'ramMedium';
+            // Dorsal Tricolor IAF Fin Flash
+            if (gx === 0 && gy === 5) {
+              if (gz >= 3 && gz <= 5) mat = 'iafSaffron';
+              else if (gz >= 0 && gz <= 2) mat = 'iafWhite';
+              else if (gz >= -3 && gz <= -1) mat = 'iafGreen';
+            }
+            registerVoxel('intakeSpine', gx, gy, gz, mat);
+          }
+        }
+      }
+    }
+
+    // === 6C. CENTER FUSELAGE BLENDED CORE (~2,200 voxels) ===
+    for (let gz = 21; gz >= -14; gz--) {
+      const halfWidth = Math.floor(6 + (21 - gz) * 0.45);
+      for (let gx = -halfWidth; gx <= halfWidth; gx++) {
+        // Exclude weapons bay hollow volume
+        const inBayArea = Math.abs(gx) <= 7 && gz >= -4 && gz <= 12;
+        const minY = inBayArea ? 0 : -2;
+        const maxY = 2;
+
+        for (let gy = minY; gy <= maxY; gy++) {
+          let mat = 'ramMedium';
+          if (gy === -2) mat = 'ramDark';
+          if (Math.abs(gx) >= halfWidth - 1) mat = 'stealthFacet';
+          else if ((gx + gz) % 7 === 0) mat = 'ramLight';
+          registerVoxel('coreFuselage', gx, gy, gz, mat);
+        }
+      }
+    }
+
+    // === 6D. WINGS (LEFT & RIGHT) WITH IAF ROUNDELS (~3,600 voxels) ===
+    // Ghatak tailless cranked-arrow planform with double-curved leading edge
+    const wingRows = [
+      { gz: 20, x0: 7, x1: 9 },
+      { gz: 18, x0: 8, x1: 12 },
+      { gz: 16, x0: 9, x1: 15 },
+      { gz: 14, x0: 10, x1: 18 },
+      { gz: 12, x0: 11, x1: 21 },
+      { gz: 10, x0: 12, x1: 24 },
+      { gz: 8,  x0: 13, x1: 27 },
+      { gz: 6,  x0: 13, x1: 30 },
+      { gz: 4,  x0: 14, x1: 32 },
+      { gz: 2,  x0: 14, x1: 34 },
+      { gz: 0,  x0: 14, x1: 35 },
+      { gz: -2, x0: 14, x1: 35 }, // Wingtip chord
+      { gz: -4, x0: 13, x1: 33 },
+      { gz: -6, x0: 12, x1: 30 },
+      { gz: -8, x0: 11, x1: 26 },
+      { gz: -10, x0: 10, x1: 22 },
+      { gz: -12, x0: 9, x1: 17 },
+      { gz: -14, x0: 8, x1: 12 },
+    ];
+
+    wingRows.forEach(({ gz, x0, x1 }) => {
+      for (let gx = x0; gx <= x1; gx++) {
+        for (let gy = -1; gy <= 1; gy++) {
+          let mat = 'ramMedium';
+          // Leading edge faceted radar scattering
+          if (gx >= x1 - 1) mat = 'stealthFacet';
+          // Panel skin lines
+          else if ((gx * 3 + gz * 2) % 11 === 0) mat = 'ramLight';
+          else if (gy === -1) mat = 'ramDark';
+
+          registerVoxelSym('wing', gx, gy, gz, mat);
+        }
+      }
+    });
+
+    // High-Resolution Concentric IAF Roundels on Both Wings
+    [-1, 1].forEach(sign => {
+      const sub = sign === 1 ? 'wingRight' : 'wingLeft';
+      const rcX = 20 * sign;
+      const rcZ = 3;
+      const rcY = 2; // Top surface of wing
+
+      for (let dx = -4; dx <= 4; dx++) {
+        for (let dz = -4; dz <= 4; dz++) {
+          const r = Math.sqrt(dx * dx + dz * dz);
+          if (r <= 4.2) {
+            let rMat = 'iafSaffron';
+            if (r <= 2.8 && r > 1.4) rMat = 'iafWhite';
+            else if (r <= 1.4 && r > 0.5) rMat = 'iafGreen';
+            else if (r <= 0.5) rMat = 'iafNavy';
+            registerVoxel(sub, rcX + dx, rcY, rcZ + dz, rMat);
+          }
+        }
+      }
+
+      // Wingtip Formation Slime Lights & Nav Lights
+      registerVoxel(sub, 35 * sign, 1, 0, 'formationSlime');
+      registerVoxel(sub, 35 * sign, 1, -1, 'formationSlime');
+      registerVoxel(sub, 35 * sign, 1, -2, 'formationSlime');
+      // Navigation lights (Starboard Green, Port Red)
+      registerVoxel(sub, 35 * sign, 1, 1, sign === 1 ? 'navGreen' : 'navRed');
+    });
+
+    // === 6E. TRAILING-EDGE STEALTH ELEVONS (~700 voxels) ===
+    for (let gz = -11; gz >= -15; gz--) {
+      for (let gx = 13; gx <= 28; gx++) {
+        for (let gy = -1; gy <= 0; gy++) {
+          let mat = 'stealthFacet';
+          if ((gx + gz) % 4 === 0) mat = 'ramMedium';
+          registerVoxelSym('elevons', gx, gy, gz, mat);
+        }
+      }
+    }
+
+    // === 6F. KAVERI TURBOFAN ENGINE & 2D SHIELDED STEALTH NOZZLE (~950 voxels) ===
+    // Upper shielded heat shroud
+    for (let gz = -9; gz >= -19; gz--) {
+      const shieldWidth = Math.max(3, Math.floor(7 - (-9 - gz) * 0.35));
+      for (let gx = -shieldWidth; gx <= shieldWidth; gx++) {
+        for (let gy = 0; gy <= 3; gy++) {
+          let mat = 'exhaustShield';
+          if (gz <= -16) mat = 'titaniumAlloy';
+          registerVoxel('engine', gx, gy, gz, mat);
+        }
+      }
+    }
+
+    // Flat 2D Low-Observable Thrust Nozzle & Afterburner Core
+    for (let gx = -4; gx <= 4; gx++) {
+      for (let gy = 0; gy <= 2; gy++) {
+        registerVoxel('engine', gx, gy, -20, 'titaniumAlloy');
+      }
+    }
+    // Thermal core glow slot
+    for (let gx = -3; gx <= 3; gx++) {
+      registerVoxel('engine', gx, 1, -21, 'thermalGlow');
+    }
+
+    // Engine Point Light
+    const engineThrustLight = new THREE.PointLight(0x38bdf8, 2.5, 9);
+    engineThrustLight.position.set(0, 1 * V_STEP, -22 * V_STEP);
+    subassemblies.engine.add(engineThrustLight);
+
+    // === 6G. INTERNAL WEAPONS BAY WITH DRDO SAAW GLIDE BOMBS (~800 voxels) ===
+    // Bay ceiling & structural ribs
+    for (let gz = 12; gz >= -4; gz--) {
+      for (let gx = -7; gx <= 7; gx++) {
+        registerVoxel('weaponsBay', gx, 0, gz, 'bayInterior');
+        if (gz % 4 === 0 || Math.abs(gx) === 7) {
+          registerVoxel('weaponsBay', gx, -1, gz, 'bayInterior');
+        }
+      }
+    }
+
+    // Twin SAAW Glide Bombs mounted in left & right bays
+    const missileMounts = [
+      { side: -1, x: -4, active: true },
+      { side: 1,  x: 4,  active: true }
+    ];
+
+    missileMounts.forEach(m => {
+      for (let gz = 9; gz >= 0; gz--) {
+        // Missile cylindrical fuselage
+        registerVoxel('weaponsBay', m.x, -2, gz, 'bombBody');
+        registerVoxel('weaponsBay', m.x, -3, gz, 'bombBody');
+        registerVoxel('weaponsBay', m.x - 1, -2, gz, 'bombBody');
+        registerVoxel('weaponsBay', m.x + 1, -2, gz, 'bombBody');
+
+        // Explosive warhead yellow indicator band
+        if (gz === 7 || gz === 6) {
+          registerVoxel('weaponsBay', m.x, -2, gz, 'bombBand');
+        }
+      }
+      // Infrared optical seeker dome on nose
+      registerVoxel('weaponsBay', m.x, -2, 10, 'bombSeeker');
+      // Deployed lattice guidance fins at rear
+      registerVoxel('weaponsBay', m.x - 2, -2, 0, 'bombFin');
+      registerVoxel('weaponsBay', m.x + 2, -2, 0, 'bombFin');
+      registerVoxel('weaponsBay', m.x, -4, 0, 'bombFin');
+      registerVoxel('weaponsBay', m.x, 0, 0, 'bombFin');
+    });
+
+    // 7. Compile InstancedMeshes per Sub-Assembly & Material for Ultra Performance
+    // Group staged voxels by [subKey][matKey]
+    const groupedVoxels = {};
+    Object.keys(subassemblies).forEach(k => { groupedVoxels[k] = {}; });
+
+    voxelRegistry.forEach(v => {
+      if (!groupedVoxels[v.subKey]) groupedVoxels[v.subKey] = {};
+      if (!groupedVoxels[v.subKey][v.matKey]) groupedVoxels[v.subKey][v.matKey] = [];
+      groupedVoxels[v.subKey][v.matKey].push(v);
+    });
+
+    const dummyObj = new THREE.Object3D();
+
+    Object.entries(groupedVoxels).forEach(([subKey, matMap]) => {
+      const parentGroup = subassemblies[subKey];
+      Object.entries(matMap).forEach(([matKey, list]) => {
+        const instMesh = new THREE.InstancedMesh(voxelBoxGeo, materials[matKey], list.length);
+        instMesh.castShadow = true;
+        instMesh.receiveShadow = true;
+
+        for (let i = 0; i < list.length; i++) {
+          const item = list[i];
+          dummyObj.position.set(item.gx * V_STEP, item.gy * V_STEP, item.gz * V_STEP);
+          dummyObj.updateMatrix();
+          instMesh.setMatrixAt(i, dummyObj.matrix);
+        }
+        instMesh.instanceMatrix.needsUpdate = true;
+        parentGroup.add(instMesh);
+      });
+    });
+
+    // Animated Weapons Bay Doors
+    const bayDoorLeft = new THREE.Group();
+    const bayDoorRight = new THREE.Group();
+    subassemblies.weaponsBay.add(bayDoorLeft);
+    subassemblies.weaponsBay.add(bayDoorRight);
+
+    // Left door voxels & Right door voxels
+    const doorVoxelsLeft = [];
+    const doorVoxelsRight = [];
+    for (let gz = 12; gz >= -4; gz--) {
+      for (let gx = 1; gx <= 7; gx++) {
+        doorVoxelsRight.push({ gx: gx, gy: -3, gz: gz });
+        doorVoxelsLeft.push({ gx: -gx, gy: -3, gz: gz });
+      }
+    }
+
+    function createDoorMesh(voxels, parent, hingeX) {
+      const inst = new THREE.InstancedMesh(voxelBoxGeo, materials.ramMedium, voxels.length);
+      inst.castShadow = true;
+      inst.receiveShadow = true;
+      voxels.forEach((v, i) => {
+        dummyObj.position.set((v.gx - hingeX) * V_STEP, v.gy * V_STEP, v.gz * V_STEP);
+        dummyObj.updateMatrix();
+        inst.setMatrixAt(i, dummyObj.matrix);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      parent.position.x = hingeX * V_STEP;
+      parent.add(inst);
+    }
+
+    createDoorMesh(doorVoxelsLeft, bayDoorLeft, -7);
+    createDoorMesh(doorVoxelsRight, bayDoorRight, 7);
+
+    // Telemetry Count
+    const totalRenderedVoxels = totalVoxelCount + doorVoxelsLeft.length + doorVoxelsRight.length;
+    document.getElementById('voxel-count').textContent = totalRenderedVoxels.toLocaleString();
+
+    // 8. Active Missiles Projectile System (Fire Simulation)
+    const activeProjectiles = [];
+    const projectileGeo = new THREE.CylinderGeometry(0.12, 0.12, 2.4, 8);
+    const projectileMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.3, metalness: 0.4 });
+    const thrustFlameMat = new THREE.MeshBasicMaterial({ color: 0xff7700 });
+    const smokeParticles = [];
+    const smokeGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+    const smokeMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.65 });
+
+    let missilesRemaining = 2;
+    let isReloading = false;
+    const combatBanner = document.getElementById('combat-banner');
+
+    function showBanner(text, duration = 2400) {
+      combatBanner.textContent = text;
+      combatBanner.classList.add('visible');
+      setTimeout(() => {
+        combatBanner.classList.remove('visible');
+      }, duration);
+    }
+
+    function fireMissile() {
+      if (isReloading) {
+        showBanner("RELOADING INTERNAL WEAPONS BAY...");
+        return;
+      }
+
+      playMissileSound();
+
+      // Automatically open weapons bay if closed
+      if (!bayOpen) {
+        bayOpen = true;
+        btnBay.classList.add('active');
+        updateBayStatus();
+      }
+
+      const launchSlotX = missilesRemaining === 2 ? -4 * V_STEP : 4 * V_STEP;
+      missilesRemaining--;
+
+      // Build missile projectile mesh
+      const projRoot = new THREE.Group();
+      const bodyMesh = new THREE.Mesh(projectileGeo, projectileMat);
+      bodyMesh.rotation.x = Math.PI / 2;
+      bodyMesh.castShadow = true;
+      projRoot.add(bodyMesh);
+
+      // Rocket exhaust flame
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.8, 8), thrustFlameMat);
+      flame.rotation.x = -Math.PI / 2;
+      flame.position.z = -1.5;
+      projRoot.add(flame);
+
+      const flameLight = new THREE.PointLight(0xff6600, 3.5, 8);
+      flameLight.position.z = -1.6;
+      projRoot.add(flameLight);
+
+      // Spawn at weapons bay position
+      projRoot.position.set(launchSlotX, -2.5 * V_STEP, 2 * V_STEP);
+      scene.add(projRoot);
+
+      activeProjectiles.push({
+        mesh: projRoot,
+        velocity: new THREE.Vector3(0, -0.08, 0.25),
+        stage: 'drop', // 'drop' -> 'boost'
+        age: 0,
+        flameLight: flameLight
+      });
+
+      const missileNum = 2 - missilesRemaining;
+      showBanner(`SAAW MISSILE 0${missileNum} LAUNCHED // BOOST PHASE`);
+      updateBayStatus();
+
+      // Visual button feedback
+      btnFire.classList.add('firing');
+      setTimeout(() => btnFire.classList.remove('firing'), 400);
+
+      // If both fired, initiate reload
+      if (missilesRemaining === 0) {
+        isReloading = true;
+        setTimeout(() => {
+          missilesRemaining = 2;
+          isReloading = false;
+          showBanner("STORES REARMED // 2x SAAW READY", 2000);
+          updateBayStatus();
+        }, 4000);
+      }
+    }
+
+    function updateBayStatus() {
+      const bayStatusEl = document.getElementById('bay-status');
+      if (isReloading) {
+        bayStatusEl.innerHTML = `<span class="telemetry-alert">REARMING STORES...</span>`;
+      } else if (bayOpen) {
+        bayStatusEl.innerHTML = `Bay OPEN // <span class="telemetry-val">${missilesRemaining}x SAAW Ready</span>`;
+      } else {
+        bayStatusEl.innerHTML = `Bay Closed // <span class="telemetry-val">${missilesRemaining}x SAAW Ready</span>`;
+      }
+    }
+
+    // 9. Camera Preset Views Management
+    let targetCameraPos = new THREE.Vector3().copy(initialCamPos);
+    let targetCameraLook = new THREE.Vector3().copy(initialTarget);
+    let isTransitioningCamera = false;
+
+    const cameraPresets = {
+      orbit: {
+        pos: new THREE.Vector3(18, 12, 22),
+        look: new THREE.Vector3(0, 0.2, 0),
+        autoRotate: true
+      },
+      front: {
+        pos: new THREE.Vector3(0, 0.6, 20),
+        look: new THREE.Vector3(0, 0.2, 2),
+        autoRotate: false
+      },
+      top: {
+        pos: new THREE.Vector3(0, 26, 0.01),
+        look: new THREE.Vector3(0, 0, 0),
+        autoRotate: false
+      },
+      engine: {
+        pos: new THREE.Vector3(0, 2.2, -16),
+        look: new THREE.Vector3(0, 0.4, -4),
+        autoRotate: false
+      }
+    };
+
+    let activeViewKey = 'orbit';
+    const viewButtons = {
+      orbit: document.getElementById('view-orbit'),
+      front: document.getElementById('view-front'),
+      top: document.getElementById('view-top'),
+      engine: document.getElementById('view-engine')
+    };
+
+    function setCameraView(viewKey) {
+      if (!cameraPresets[viewKey]) return;
+      activeViewKey = viewKey;
+      const preset = cameraPresets[viewKey];
+
+      targetCameraPos.copy(preset.pos);
+      targetCameraLook.copy(preset.look);
+      isTransitioningCamera = true;
+
+      controls.autoRotate = preset.autoRotate;
+      btnAutoRotate.classList.toggle('active', preset.autoRotate);
+
+      Object.entries(viewButtons).forEach(([key, btn]) => {
+        btn.classList.toggle('active', key === viewKey);
+      });
+    }
+
+    Object.entries(viewButtons).forEach(([key, btn]) => {
+      btn.addEventListener('click', () => setCameraView(key));
+    });
+
+    // 10. Explode View Management
+    let isExploded = false;
+    let explodeProgress = 0.0;
+    const btnExplode = document.getElementById('btn-explode');
+
+    btnExplode.addEventListener('click', () => {
+      isExploded = !isExploded;
+      btnExplode.classList.toggle('active', isExploded);
+      if (isExploded) {
+        showBanner("EXPLODED VIEW ACTIVE // SUBSYSTEMS DECOUPLED");
+      }
+    });
+
+    // 11. Interactive HUD Actions
+    let isAutoRotating = true;
+    let bayOpen = false;
+    let flirMode = false;
+
+    const btnFire = document.getElementById('btn-fire');
+    const btnBay = document.getElementById('btn-bay');
+    const btnAutoRotate = document.getElementById('btn-autorotate');
+    const btnFlir = document.getElementById('btn-flir');
+    const btnReset = document.getElementById('btn-reset');
+    const fpsVal = document.getElementById('fps-val');
+
+    btnFire.addEventListener('click', fireMissile);
+
+    btnBay.addEventListener('click', () => {
+      bayOpen = !bayOpen;
+      btnBay.classList.toggle('active', bayOpen);
+      updateBayStatus();
+    });
+
+    btnAutoRotate.addEventListener('click', () => {
+      isAutoRotating = !controls.autoRotate;
+      controls.autoRotate = isAutoRotating;
+      btnAutoRotate.classList.toggle('active', isAutoRotating);
+    });
+
+    btnFlir.addEventListener('click', () => {
+      flirMode = !flirMode;
+      btnFlir.classList.toggle('active', flirMode);
+      if (flirMode) {
+        scene.background = new THREE.Color(0x04111d);
+        scene.fog.color = new THREE.Color(0x04111d);
+        materials.ramMedium.wireframe = true;
+        materials.ramLight.wireframe = true;
+        materials.stealthFacet.wireframe = true;
+        materials.eotsGlass.emissiveIntensity = 2.2;
+      } else {
+        scene.background = new THREE.Color(0x090c10);
+        scene.fog.color = new THREE.Color(0x090c10);
+        materials.ramMedium.wireframe = false;
+        materials.ramLight.wireframe = false;
+        materials.stealthFacet.wireframe = false;
+        materials.eotsGlass.emissiveIntensity = 0.5;
+      }
+    });
+
+    btnReset.addEventListener('click', () => {
+      setCameraView('orbit');
+      controls.reset();
+      camera.position.copy(initialCamPos);
+      controls.target.copy(initialTarget);
+    });
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === '1') setCameraView('orbit');
+      else if (key === '2') setCameraView('front');
+      else if (key === '3') setCameraView('top');
+      else if (key === '4') setCameraView('engine');
+      else if (key === 'e') {
+        btnExplode.click();
+      } else if (key === 'f' || key === ' ') {
+        e.preventDefault();
+        fireMissile();
+      } else if (key === 'b') {
+        btnBay.click();
+      } else if (key === 'r') {
+        btnAutoRotate.click();
+      } else if (key === 's') {
+        btnFlir.click();
+      }
+    });
+
+    // Window Resize Handler
+    window.addEventListener('resize', () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+
+    // 12. Animation Loop
+    let doorAngle = 0;
+    let frameCount = 0;
+    let lastFpsUpdate = performance.now();
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const elapsedTime = clock.getElapsedTime();
+      const deltaTime = clock.getDelta();
+
+      // Smooth Camera Transitions
+      if (isTransitioningCamera) {
+        camera.position.lerp(targetCameraPos, 0.08);
+        controls.target.lerp(targetCameraLook, 0.08);
+        if (camera.position.distanceTo(targetCameraPos) < 0.1 && controls.target.distanceTo(targetCameraLook) < 0.05) {
+          isTransitioningCamera = false;
+        }
+      }
+
+      controls.update();
+
+      // Explode View Smooth Interpolation
+      const targetExplode = isExploded ? 1.0 : 0.0;
+      explodeProgress += (targetExplode - explodeProgress) * 0.07;
+
+      if (explodeProgress > 0.001) {
+        subassemblies.nose.position.z = explodeProgress * 6.5;
+        subassemblies.intakeSpine.position.y = explodeProgress * 4.5;
+        subassemblies.engine.position.z = -explodeProgress * 6.0;
+        subassemblies.wingLeft.position.set(-explodeProgress * 6.5, 0.2 * explodeProgress, -explodeProgress * 1.5);
+        subassemblies.wingRight.position.set(explodeProgress * 6.5, 0.2 * explodeProgress, -explodeProgress * 1.5);
+        subassemblies.elevonsLeft.position.set(-explodeProgress * 8.5, -0.2 * explodeProgress, -explodeProgress * 4.5);
+        subassemblies.elevonsRight.position.set(explodeProgress * 8.5, -0.2 * explodeProgress, -explodeProgress * 4.5);
+        subassemblies.weaponsBay.position.y = -explodeProgress * 4.8;
+      } else {
+        Object.values(subassemblies).forEach(grp => grp.position.set(0, 0, 0));
+      }
+
+      // Aerodynamic Flight Bobbing (only active when not exploded)
+      if (!isExploded) {
+        jetModel.position.y = Math.sin(elapsedTime * 1.6) * 0.12;
+        jetModel.rotation.z = Math.sin(elapsedTime * 0.9) * 0.02;
+        jetModel.rotation.x = Math.sin(elapsedTime * 1.3) * 0.012;
+      } else {
+        jetModel.position.y = 0;
+        jetModel.rotation.set(0, 0, 0);
+      }
+
+      // Smooth Weapons Bay Doors Opening/Closing
+      const targetDoorAngle = bayOpen ? 1.45 : 0.0;
+      doorAngle += (targetDoorAngle - doorAngle) * 0.12;
+      bayDoorLeft.rotation.z = -doorAngle;
+      bayDoorRight.rotation.z = doorAngle;
+
+      // Kaveri Engine Pulse & Light Glow
+      const exhaustPulse = 1.0 + Math.sin(elapsedTime * 18.0) * 0.15;
+      engineThrustLight.intensity = 2.4 + Math.sin(elapsedTime * 24.0) * 0.6;
+
+      // Projectiles Physics & Smoke Trails
+      for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+        const p = activeProjectiles[i];
+        p.age += 0.016;
+
+        if (p.stage === 'drop') {
+          p.velocity.y -= 0.012;
+          p.mesh.position.add(p.velocity);
+          if (p.age > 0.3) {
+            p.stage = 'boost';
+            p.velocity.set(0, 0.06, 0.85);
+          }
+        } else if (p.stage === 'boost') {
+          p.velocity.z += 0.045; // Accelerate forward
+          p.mesh.position.add(p.velocity);
+
+          // Emit smoke trail
+          if (Math.random() > 0.3) {
+            const smoke = new THREE.Mesh(smokeGeo, smokeMat.clone());
+            smoke.position.copy(p.mesh.position);
+            smoke.position.z -= 1.4;
+            smoke.userData = { life: 1.0, scale: 0.15 };
+            scene.add(smoke);
+            smokeParticles.push(smoke);
+          }
+        }
+
+        // Remove projectile once out of combat zone
+        if (p.mesh.position.z > 95 || p.age > 4.5) {
+          scene.remove(p.mesh);
+          activeProjectiles.splice(i, 1);
+        }
+      }
+
+      // Update Smoke Particles
+      for (let i = smokeParticles.length - 1; i >= 0; i--) {
+        const sp = smokeParticles[i];
+        sp.userData.life -= 0.025;
+        sp.userData.scale += 0.035;
+        sp.scale.setScalar(sp.userData.scale);
+        sp.material.opacity = sp.userData.life * 0.55;
+        sp.position.y += 0.015;
+
+        if (sp.userData.life <= 0) {
+          scene.remove(sp);
+          smokeParticles.splice(i, 1);
+        }
+      }
+
+      // Tactical Ground Radar Rings Slow Rotation
+      runwayGroup.rotation.y = elapsedTime * 0.04;
+
+      // FPS Counter
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFpsUpdate >= 500) {
+        const currentFps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+        fpsVal.textContent = currentFps.toString();
+        frameCount = 0;
+        lastFpsUpdate = now;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
