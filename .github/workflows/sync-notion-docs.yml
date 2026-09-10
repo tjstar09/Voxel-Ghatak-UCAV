@@ -1,0 +1,57 @@
+name: Sync Notion Docs
+
+# Auto-updates Notion documentation whenever something is merged to main.
+# Requires repo secrets: NOTION_API_KEY, NOTION_PARENT_PAGE_ID
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'src/**'
+      - 'package.json'
+      - 'metadata.json'
+      - 'docs/**'
+      - 'scripts/sync-notion-docs.mjs'
+      - '.github/workflows/sync-notion-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: notion-docs-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-docs:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Regenerate docs + push to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_PARENT_PAGE_ID: ${{ secrets.NOTION_PARENT_PAGE_ID }}
+        run: node scripts/sync-notion-docs.mjs
+
+      - name: Commit refreshed docs back
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/ || true
+          if git diff --cached --quiet; then
+            echo "No docs changes to commit."
+          else
+            git commit -m "docs: auto-sync Notion docs from main [skip ci]"
+            git push
+          fi
