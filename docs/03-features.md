@@ -1,11 +1,12 @@
 # Features — Views, Actions, Flight, Telemetry
 
-## Camera Views (keys 1-4)
+## Camera Views (keys 1-8)
 
 - **Orbit (1):** default 3/4 perspective, autoRotate on
 - **Front (2):** head-on stealth aspect
 - **Top (3):** flying-wing planform
 - **Engine (4):** close-up shielded Kaveri exhaust + blue thrust light
+- **Deck (5) / Runway (6) / Target (7) / Rocks (8):** scenery walk views
 - **Explode (E):** separates sub-assemblies outward, use while Hold to inspect
 
 ## Actions
@@ -13,8 +14,11 @@
 - **Fire SAAW (F/Space):** launches SAAW 01 with boost-phase banner + Web Audio synth (triangle drop 160->35Hz + bandpass noise sweep), banner `SAAW MISSILE 01 LAUNCHED // BOOST PHASE`
 - **Bay Doors (B):** animated hinge rotation, telemetry `Bay Closed // 2x SAAW Ready`
 - **Auto Rotate (R):** toggles controls.autoRotate
-- **EO/IR (S):** FLIR wireframe targeting overlay
-- **Scenery (V):** toggles envGroup (deck, base, clouds, wingmen)
+- **FLIR Jet (S):** jet-wide wireframe — all 19 airframe materials go wireframe, scenery untouched (hide it with Scenery/V for jet-only view); mutually exclusive with Thermal
+- **Thermal (T):** true thermal mode — scene-wide false-color night vision, cold monochrome + white-hot engine/seekers/beacons/lamps, dimmed sun/ambient; mutually exclusive with FLIR Jet
+- **Scenery (V):** toggles envGroup (deck, base, clouds, wingmen, asteroid belt)
+- **Walk (WASD/arrows, Q/Z up-down, Shift fast):** glides camera + target together for scenery walkthrough
+- **Build (palette):** 📦 Crate / 🛢️ Drum / ⛺ Tent / 📡 Pylon ghost-follow cursor, click to place, Esc/right-click cancels, click placed object inspects, 🧹 Clear wipes; persisted to localStorage (max 60)
 - **Reset:** restores initialCamPos/target
 
 ## Flight (L / N)

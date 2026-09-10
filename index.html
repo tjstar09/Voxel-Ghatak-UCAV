@@ -345,12 +345,40 @@
       opacity: 1;
       transform: translateX(-50%) translateY(4px);
     }
+    .btn.building {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #10b981;
+      color: #34d399;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+    }
+    #place-hint {
+      position: absolute;
+      bottom: 118px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(16, 185, 129, 0.92);
+      border: 1px solid #6ee7b7;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #022c22;
+      text-transform: uppercase;
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+      z-index: 11;
+    }
+    #place-hint.visible { opacity: 1; }
   </style>
 </head>
 <body>
   <div id="canvas-container"></div>
 
   <div id="combat-banner">SAAW MISSILE 01 LAUNCHED // BOOST PHASE</div>
+  <div id="place-hint">PLACING… click scenery to drop • right-click / Esc to cancel</div>
 
   <div class="hud">
     <div class="hud-top">
@@ -409,9 +437,13 @@
             <span>🔄 Auto Rotate</span>
             <span class="shortcut-badge">R</span>
           </button>
-          <button id="btn-flir" class="btn" title="Toggle FLIR Wireframe Targeting">
-            <span>🛰️ EO/IR</span>
+          <button id="btn-flir-jet" class="btn" title="Jet-wide FLIR wireframe (whole airframe goes wireframe, scenery untouched — hide it with Scenery V if wanted)">
+            <span>🛰️ FLIR Jet</span>
             <span class="shortcut-badge">S</span>
+          </button>
+          <button id="btn-thermal" class="btn" title="True thermal mode (scene-wide false-color night vision, hot parts glow white-hot)">
+            <span>🌡️ Thermal</span>
+            <span class="shortcut-badge">T</span>
           </button>
           <button id="btn-env" class="btn active" title="Toggle Voxel Environment (deck, base, clouds, wingmen)">
             <span>🏝️ Scenery</span>
@@ -432,6 +464,55 @@
           <button id="btn-land" class="btn" title="Finish this loop, then fly final over the runway and land on deck">
             <span>🛬 Land</span>
             <span class="shortcut-badge">N</span>
+          </button>
+        </div>
+
+        <!-- Navigate: walk the scenery -->
+        <div class="btn-group">
+          <span class="group-label">Navigate</span>
+          <button id="view-deck" class="btn" title="Deck-level walk view">
+            <span>🛳️ Deck</span>
+            <span class="shortcut-badge">5</span>
+          </button>
+          <button id="view-runway" class="btn" title="Land runway overview">
+            <span>🛣️ Runway</span>
+            <span class="shortcut-badge">6</span>
+          </button>
+          <button id="view-target" class="btn" title="Target range close-up">
+            <span>🎯 Target</span>
+            <span class="shortcut-badge">7</span>
+          </button>
+          <button id="view-rocks" class="btn" title="Asteroid belt sky view">
+            <span>☄️ Rocks</span>
+            <span class="shortcut-badge">8</span>
+          </button>
+          <button id="btn-walkmode" class="btn" title="Toggle WASD / arrow-key walk (moves camera + target together)">
+            <span>🚶 Walk</span>
+            <span class="shortcut-badge">WASD</span>
+          </button>
+        </div>
+
+        <!-- Build: click a palette button, ghost follows cursor, click scenery to place. Saved to localStorage. -->
+        <div class="btn-group">
+          <span class="group-label">Build</span>
+          <button id="place-crate" class="btn" title="Place supply crate (click scenery to drop, Esc to cancel)">
+            <span>📦 Crate</span>
+            <span class="shortcut-badge">P1</span>
+          </button>
+          <button id="place-drum" class="btn" title="Place fuel drum stack">
+            <span>🛢️ Drum</span>
+            <span class="shortcut-badge">P2</span>
+          </button>
+          <button id="place-tent" class="btn" title="Place field tent">
+            <span>⛺ Tent</span>
+            <span class="shortcut-badge">P3</span>
+          </button>
+          <button id="place-pylon" class="btn" title="Place comms pylon with lamp">
+            <span>📡 Pylon</span>
+            <span class="shortcut-badge">P4</span>
+          </button>
+          <button id="place-clear" class="btn" title="Remove all placed objects (clears saved state)">
+            <span>🧹 Clear</span>
           </button>
         </div>
       </div>
@@ -470,6 +551,22 @@
         <div class="instruction-item">
           <span class="kbd">N</span>
           <span>Land</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">5-8</span>
+          <span>Deck / Runway / Target / Rocks</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">W A D + Arrows</span>
+          <span>Walk (Q/Z up/down)</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">Click</span>
+          <span>Place / Inspect object</span>
+        </div>
+        <div class="instruction-item">
+          <span class="kbd">Esc</span>
+          <span>Cancel placement</span>
         </div>
       </div>
 
@@ -1447,9 +1544,10 @@
       body.push([0, 0.64, 4 * 0.32]);
       glow.push([0, 0.15, -6.6 * 0.32]);
       glow.push([side * 8 * 0.32, 0.15, -1 * 0.32]);
-      buildInstanced(body, 0.3, materials.ramMedium, g);
-      buildInstanced(edge, 0.3, materials.stealthFacet, g);
-      buildInstanced(glow, 0.22, side < 0 ? materials.navRed : materials.navGreen, g);
+      // Cloned skin materials: wingmen stay solid when JET-WIDE FLIR wireframes the shared jet materials.
+      buildInstanced(body, 0.3, materials.ramMedium.clone(), g);
+      buildInstanced(edge, 0.3, materials.stealthFacet.clone(), g);
+      buildInstanced(glow, 0.22, (side < 0 ? materials.navRed : materials.navGreen).clone(), g);
       g.position.set(side * 9, 1.6, -3);
       g.rotation.y = Math.PI;
       envGroup.add(g);
@@ -1458,6 +1556,56 @@
     }
     buildWingman(-1);
     buildWingman(1);
+
+    // --- Voxel asteroid belt (high-altitude drifting + tumbling rocks) ---
+    // Part of envGroup so Scenery (V) toggles it. Each rock is a noisy voxel
+    // ellipsoid built with buildInstanced; per-frame we tumble + drift + bob.
+    const asteroids = [];
+    {
+      const beltDefs = [
+        { x: -34, y: 24, z: 18, s: 1.5, drift: 0.55, spin: 0.35 },
+        { x: -12, y: 27, z: 30, s: 1.1, drift: 0.42, spin: 0.5 },
+        { x: 10, y: 22, z: 34, s: 1.7, drift: 0.35, spin: 0.28 },
+        { x: 30, y: 26, z: 16, s: 1.2, drift: 0.62, spin: 0.44 },
+        { x: 38, y: 21, z: -8, s: 0.9, drift: 0.5, spin: 0.6 },
+        { x: -40, y: 23, z: -10, s: 1.0, drift: 0.47, spin: 0.52 },
+        { x: 2, y: 29, z: -2, s: 0.7, drift: 0.38, spin: 0.7 },
+      ];
+      beltDefs.forEach((d, idx) => {
+        const g = new THREE.Group();
+        g.position.set(d.x, d.y, d.z);
+        const rock = [], dark = [], frost = [], glow = [];
+        const R = Math.round(3 * d.s);
+        for (let ix = -R; ix <= R; ix++) {
+          for (let iy = -R; iy <= R; iy++) {
+            for (let iz = -R; iz <= R; iz++) {
+              const n = Math.sqrt(ix * ix + iy * iy * 1.2 + iz * iz);
+              if (n > R) continue;
+              // Craggy surface: skip random interior/surface voxels
+              if (n > R - 1 && Math.random() > 0.55) continue;
+              if (Math.random() > 0.86) continue;
+              const p = [ix * 0.62, iy * 0.62, iz * 0.62];
+              if (n > R - 1.2 && Math.random() > 0.7) frost.push(p);
+              else if (Math.random() > 0.6) dark.push(p);
+              else rock.push(p);
+            }
+          }
+        }
+        // Glowing fissure seam across each rock
+        for (let k = -R; k <= R; k++) {
+          if (Math.random() > 0.4) glow.push([k * 0.62, Math.sin(k * 1.3 + idx) * 0.6, 0.62 * (R * 0.55)]);
+        }
+        const before = envVoxelCount;
+        buildInstanced(rock, 0.6, materials.rockMid, g);
+        buildInstanced(dark, 0.6, materials.rockDark, g);
+        buildInstanced(frost, 0.55, materials.snowCap, g);
+        buildInstanced(glow, 0.28, materials.edgeOrange, g);
+        g.userData = { drift: d.drift, spin: d.spin, baseY: d.y, phase: idx * 1.3, count: envVoxelCount - before };
+        g.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+        envGroup.add(g);
+        asteroids.push(g);
+      });
+    }
 
     // --- Voxel engine exhaust plume (attached to engine subassembly) ---
     const exhaustVoxels = [];
@@ -1684,6 +1832,26 @@
         pos: new THREE.Vector3(0, 2.2, -16),
         look: new THREE.Vector3(0, 0.4, -4),
         autoRotate: false
+      },
+      deck: {
+        pos: new THREE.Vector3(10.5, -0.6, 12.5),
+        look: new THREE.Vector3(0, -3.2, 0),
+        autoRotate: false
+      },
+      runway: {
+        pos: new THREE.Vector3(0, 5.5, -42),
+        look: new THREE.Vector3(0, -4.2, -26),
+        autoRotate: false
+      },
+      target: {
+        pos: new THREE.Vector3(7.5, 0.5, 36),
+        look: new THREE.Vector3(0, -2.2, 46),
+        autoRotate: false
+      },
+      rocks: {
+        pos: new THREE.Vector3(0, 16, -14),
+        look: new THREE.Vector3(0, 23, 24),
+        autoRotate: false
       }
     };
 
@@ -1692,7 +1860,11 @@
       orbit: document.getElementById('view-orbit'),
       front: document.getElementById('view-front'),
       top: document.getElementById('view-top'),
-      engine: document.getElementById('view-engine')
+      engine: document.getElementById('view-engine'),
+      deck: document.getElementById('view-deck'),
+      runway: document.getElementById('view-runway'),
+      target: document.getElementById('view-target'),
+      rocks: document.getElementById('view-rocks')
     };
 
     function setCameraView(viewKey) {
@@ -1732,12 +1904,12 @@
     // 11. Interactive HUD Actions
     let isAutoRotating = true;
     let bayOpen = false;
-    let flirMode = false;
 
     const btnFire = document.getElementById('btn-fire');
     const btnBay = document.getElementById('btn-bay');
     const btnAutoRotate = document.getElementById('btn-autorotate');
-    const btnFlir = document.getElementById('btn-flir');
+    const btnFlirJet = document.getElementById('btn-flir-jet');
+    const btnThermal = document.getElementById('btn-thermal');
     const btnEnv = document.getElementById('btn-env');
     const btnReset = document.getElementById('btn-reset');
     const fpsVal = document.getElementById('fps-val');
@@ -1756,25 +1928,96 @@
       btnAutoRotate.classList.toggle('active', isAutoRotating);
     });
 
-    btnFlir.addEventListener('click', () => {
-      flirMode = !flirMode;
-      btnFlir.classList.toggle('active', flirMode);
-      if (flirMode) {
-        scene.background = new THREE.Color(0x04111d);
-        scene.fog.color = new THREE.Color(0x04111d);
-        materials.ramMedium.wireframe = true;
-        materials.ramLight.wireframe = true;
-        materials.stealthFacet.wireframe = true;
-        materials.eotsGlass.emissiveIntensity = 2.2;
+    // 11A. Sensor modes (mutually exclusive):
+    //  (1) JET-WIDE FLIR — every airframe material goes wireframe; scenery untouched
+    //      (hide scenery with Scenery/V if you want jet-only).
+    //  (2) TRUE THERMAL — scene-wide false-color night vision; hot parts glow white-hot.
+    const JET_FLIR_MATS = [
+      materials.ramDark, materials.ramMedium, materials.ramLight,
+      materials.stealthFacet, materials.serration,
+      materials.eotsTurret, materials.eotsGlass,
+      materials.titaniumAlloy, materials.exhaustShield, materials.thermalGlow,
+      materials.turbineCore, materials.bayInterior,
+      materials.bombBody, materials.bombBand, materials.bombFin, materials.bombSeeker,
+      materials.formationSlime, materials.navRed, materials.navGreen,
+    ];
+    let jetFlirMode = false;
+    let thermalMode = false;
+    const thermalSaved = new Map(); // material -> {color, emissive, emissiveIntensity}
+    const thermalLightsSaved = {};
+    const THERMAL_HOT = new Set([
+      materials.thermalGlow, materials.flameOrange, materials.flameYellow, materials.flameBlue,
+      materials.beaconRed, materials.navRed, materials.navGreen, materials.formationSlime,
+      materials.bombSeeker, materials.edgeCyan, materials.edgeOrange,
+      materials.hullPorthole, materials.eotsGlass,
+    ]);
+
+    function setJetFlir(on) {
+      jetFlirMode = on;
+      if (btnFlirJet) btnFlirJet.classList.toggle('active', on);
+      if (on && thermalMode) setThermal(false);
+      JET_FLIR_MATS.forEach(m => { if (m) m.wireframe = on; });
+      materials.eotsGlass.emissiveIntensity = on ? 2.2 : 0.5;
+      if (!thermalMode) {
+        scene.background = new THREE.Color(on ? 0x04111d : 0x090c10);
+        scene.fog.color = new THREE.Color(on ? 0x04111d : 0x090c10);
+      }
+      if (on) showBanner('JET FLIR ACTIVE // AIRFRAME WIREFRAME — V HIDES SCENERY', 2200);
+    }
+
+    function setThermal(on) {
+      thermalMode = on;
+      if (btnThermal) btnThermal.classList.toggle('active', on);
+      if (on && jetFlirMode) setJetFlir(false);
+      if (on) {
+        // Night-vision wash: cold monochrome everything, white-hot heat sources, dimmed lights.
+        scene.traverse(o => {
+          const m = o.material;
+          if (!m || !('color' in m) || thermalSaved.has(m)) return;
+          thermalSaved.set(m, {
+            color: m.color.clone(),
+            emissive: m.emissive ? m.emissive.clone() : null,
+            emissiveIntensity: m.emissiveIntensity,
+          });
+          if (THERMAL_HOT.has(m)) {
+            m.color.set(0xffffff);
+            if (m.emissive) { m.emissive.set(0xffffff); m.emissiveIntensity = 3.0; }
+          } else {
+            const lum = 0.2126 * m.color.r + 0.7152 * m.color.g + 0.0722 * m.color.b;
+            const cold = 0.04 + Math.min(Math.max(lum, 0), 1) * 0.22;
+            m.color.setRGB(cold * 0.5, cold * 0.85, cold);
+            if (m.emissive) { m.emissive.setRGB(0, 0, 0); m.emissiveIntensity = 0; }
+          }
+        });
+        thermalLightsSaved.ambient = ambientLight.intensity;
+        thermalLightsSaved.sun = sunLight.intensity;
+        thermalLightsSaved.rim = rimLight.intensity;
+        ambientLight.intensity = 0.35;
+        sunLight.intensity = 0.5;
+        rimLight.intensity = 2.2;
+        engineThrustLight.intensity = 6.0;
+        scene.background = new THREE.Color(0x010507);
+        scene.fog.color = new THREE.Color(0x010507);
+        showBanner('THERMAL ACTIVE // WHITE-HOT ENGINE, SEEKERS, BEACONS', 2200);
       } else {
+        thermalSaved.forEach((s, m) => {
+          m.color.copy(s.color);
+          if (m.emissive && s.emissive) m.emissive.copy(s.emissive);
+          if (s.emissiveIntensity !== undefined) m.emissiveIntensity = s.emissiveIntensity;
+        });
+        thermalSaved.clear();
+        if (thermalLightsSaved.ambient !== undefined) {
+          ambientLight.intensity = thermalLightsSaved.ambient;
+          sunLight.intensity = thermalLightsSaved.sun;
+          rimLight.intensity = thermalLightsSaved.rim;
+        }
         scene.background = new THREE.Color(0x090c10);
         scene.fog.color = new THREE.Color(0x090c10);
-        materials.ramMedium.wireframe = false;
-        materials.ramLight.wireframe = false;
-        materials.stealthFacet.wireframe = false;
-        materials.eotsGlass.emissiveIntensity = 0.5;
       }
-    });
+    }
+
+    if (btnFlirJet) btnFlirJet.addEventListener('click', () => setJetFlir(!jetFlirMode));
+    if (btnThermal) btnThermal.addEventListener('click', () => setThermal(!thermalMode));
 
     btnEnv.addEventListener('click', () => {
       envGroup.visible = !envGroup.visible;
@@ -1937,13 +2180,247 @@
     const _flightPos = new THREE.Vector3();
     const _flightNext = new THREE.Vector3();
 
+    // 11C. Walk mode: WASD / arrows glide camera + target together (S stays EO/IR)
+    let walkEnabled = true;
+    const btnWalkMode = document.getElementById('btn-walkmode');
+    if (btnWalkMode) {
+      btnWalkMode.classList.add('active');
+      btnWalkMode.addEventListener('click', () => {
+        walkEnabled = !walkEnabled;
+        btnWalkMode.classList.toggle('active', walkEnabled);
+        showBanner(walkEnabled ? 'WALK MODE ON // W A D + ARROWS, Q/Z UP-DOWN' : 'WALK MODE OFF', 1800);
+      });
+    }
+    function walkStep(fx, fz, fy = 0, boost = false) {
+      if (!walkEnabled) return;
+      isTransitioningCamera = false; // user takes over
+      const step = boost ? 2.6 : 1.1;
+      // Camera-relative ground-plane basis
+      const fwd = new THREE.Vector3();
+      camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+      const right = new THREE.Vector3(fwd.z, 0, -fwd.x).negate(); // camera right
+      const move = new THREE.Vector3()
+        .addScaledVector(fwd, fz * step)
+        .addScaledVector(right, fx * step);
+      move.y = fy * step;
+      camera.position.add(move);
+      controls.target.add(move);
+      targetCameraPos.copy(camera.position);
+      targetCameraLook.copy(controls.target);
+    }
+
+    // 11D. Build mode: palette buttons spawn a ghost at the cursor, click to place, saved to localStorage.
+    const PLACE_KEY = 'voxel-ghatak-placements-v1';
+    const placeGroup = new THREE.Group();
+    placeGroup.name = 'playerPlacements';
+    scene.add(placeGroup);
+    const placeButtons = {
+      crate: document.getElementById('place-crate'),
+      drum: document.getElementById('place-drum'),
+      tent: document.getElementById('place-tent'),
+      pylon: document.getElementById('place-pylon'),
+    };
+    const placeClearBtn = document.getElementById('place-clear');
+    const placeHint = document.getElementById('place-hint');
+    let placeType = null;
+    let ghost = null;
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 4.4); // y = -4.4 deck plane
+    const _hitPoint = new THREE.Vector3();
+    const selectPulse = []; // {obj, t}
+
+    function buildPlaceable(type) {
+      const g = new THREE.Group();
+      g.userData.placeType = type;
+      const put = (voxels, size, mat) => {
+        if (!voxels.length) return;
+        const geo = new THREE.BoxGeometry(size, size, size);
+        const inst = new THREE.InstancedMesh(geo, mat, voxels.length);
+        inst.castShadow = true; inst.receiveShadow = true;
+        voxels.forEach((v, i) => {
+          dummyEnv.position.set(v[0], v[1], v[2]);
+          dummyEnv.updateMatrix();
+          inst.setMatrixAt(i, dummyEnv.matrix);
+        });
+        inst.instanceMatrix.needsUpdate = true;
+        g.add(inst);
+      };
+      if (type === 'crate') {
+        const box = [], edge = [];
+        for (let ix = -1; ix <= 1; ix++) for (let iy = 0; iy <= 2; iy++) for (let iz = -1; iz <= 1; iz++) {
+          const isEdge = Math.abs(ix) === 1 || iy === 0 || iy === 2 || Math.abs(iz) === 1;
+          (isEdge ? edge : box).push([ix * 0.5, iy * 0.5, iz * 0.5]);
+        }
+        put(box, 0.48, materials.tentTan); put(edge, 0.48, materials.barrelRust);
+      } else if (type === 'drum') {
+        const body = [], band = [];
+        for (let iy = 0; iy <= 3; iy++) for (let a = 0; a < 8; a++) {
+          const th = (a / 8) * Math.PI * 2;
+          const px = Math.cos(th) * 0.5, pz = Math.sin(th) * 0.5;
+          ((iy === 1 || iy === 2) ? band : body).push([px, 0.3 + iy * 0.5, pz]);
+        }
+        body.push([0, 0.3 + 4 * 0.5, 0]);
+        put(body, 0.46, materials.barrelBlue); put(band, 0.46, materials.barrelRust);
+      } else if (type === 'tent') {
+        const cloth = [], pole = [];
+        for (let iy = 0; iy <= 3; iy++) {
+          const w = 2 - iy * 0.5;
+          for (let ix = -w; ix <= w; ix += 0.5) for (let iz = -1; iz <= 1; iz += 0.5) {
+            if (Math.abs(ix) >= w - 0.01 || iy === 0) cloth.push([ix * 0.55, iy * 0.5, iz * 0.55]);
+          }
+        }
+        for (let iy = 0; iy <= 4; iy++) pole.push([0, iy * 0.5, 1.15]);
+        put(cloth, 0.5, materials.tentTan); put(pole, 0.2, materials.towerGray);
+      } else { // pylon
+        const mast = [], lamp = [], foot = [];
+        for (let iy = 0; iy <= 5; iy++) mast.push([0, iy * 0.5, 0]);
+        lamp.push([0, 3.1, 0]);
+        for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) foot.push([ix * 0.5, 0, iz * 0.5]);
+        put(mast, 0.3, materials.towerGray); put(foot, 0.48, materials.deckDark); put(lamp, 0.34, materials.edgeCyan);
+      }
+      return g;
+    }
+
+    function refreshGhost() {
+      if (ghost) { scene.remove(ghost); ghost = null; }
+      Object.values(placeButtons).forEach(b => b && b.classList.remove('building'));
+      if (placeHint) placeHint.classList.toggle('visible', !!placeType);
+      if (!placeType) return;
+      ghost = buildPlaceable(placeType);
+      ghost.traverse(o => {
+        if (o.isInstancedMesh || o.isMesh) {
+          o.material = o.material.clone();
+          o.material.transparent = true; o.material.opacity = 0.55;
+        }
+      });
+      ghost.visible = false;
+      scene.add(ghost);
+      const btn = placeButtons[placeType];
+      if (btn) btn.classList.add('building');
+    }
+
+    function setPlaceType(type) {
+      placeType = (placeType === type) ? null : type; // toggle
+      refreshGhost();
+      if (placeType && placeHint) {
+        const names = { crate: '📦 CRATE', drum: '🛢️ DRUM', tent: '⛺ TENT', pylon: '📡 PYLON' };
+        showBanner(`${names[placeType]} SELECTED // CLICK SCENERY TO PLACE, ESC TO CANCEL`, 2200);
+      }
+    }
+
+    function savePlacements() {
+      try {
+        const arr = placeGroup.children.map(o => ({
+          type: o.userData.placeType, x: +o.position.x.toFixed(2),
+          y: +o.position.y.toFixed(2), z: +o.position.z.toFixed(2),
+          ry: +o.rotation.y.toFixed(2),
+        }));
+        localStorage.setItem(PLACE_KEY, JSON.stringify(arr));
+      } catch (err) { /* storage unavailable (private mode) */ }
+    }
+
+    function loadPlacements() {
+      try {
+        const raw = localStorage.getItem(PLACE_KEY);
+        if (!raw) return;
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return;
+        arr.slice(0, 60).forEach(p => {
+          if (!p || !p.type) return;
+          const obj = buildPlaceable(p.type);
+          obj.position.set(p.x || 0, p.y == null ? -4.4 : p.y, p.z || 0);
+          obj.rotation.y = p.ry || 0;
+          placeGroup.add(obj);
+        });
+        if (placeGroup.children.length) {
+          updateVoxelTelemetry();
+          showBanner(`RESTORED ${placeGroup.children.length} PLACED OBJECTS // FROM SAVED STATE`, 2200);
+        }
+      } catch (err) { /* corrupted save -> start empty */ }
+    }
+
+    Object.entries(placeButtons).forEach(([type, btn]) => {
+      if (btn) btn.addEventListener('click', () => setPlaceType(type));
+    });
+    if (placeClearBtn) placeClearBtn.addEventListener('click', () => {
+      const n = placeGroup.children.length;
+      while (placeGroup.children.length) placeGroup.remove(placeGroup.children[0]);
+      setPlaceTypeSilent();
+      savePlacements();
+      showBanner(n ? `CLEARED ${n} PLACED OBJECTS // SAVE WIPED` : 'BUILD AREA ALREADY EMPTY', 2000);
+    });
+    function setPlaceTypeSilent() { placeType = null; refreshGhost(); }
+
+    // Pointer: ghost follows cursor on deck plane; click places (drag-safe); click object inspects.
+    let downPos = null;
+    function updatePointer(e) {
+      const r = renderer.domElement.getBoundingClientRect();
+      pointerNDC.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    }
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (!ghost) return;
+      updatePointer(e);
+      raycaster.setFromCamera(pointerNDC, camera);
+      if (raycaster.ray.intersectPlane(groundPlane, _hitPoint)) {
+        ghost.visible = true;
+        ghost.position.set(
+          Math.round(_hitPoint.x * 2) / 2,
+          -4.4,
+          Math.round(_hitPoint.z * 2) / 2
+        );
+      } else ghost.visible = false;
+    });
+    renderer.domElement.addEventListener('pointerdown', (e) => { downPos = [e.clientX, e.clientY]; });
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!downPos) return;
+      const moved = Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]);
+      downPos = null;
+      if (moved > 6) return; // it was a drag, not a click
+      updatePointer(e);
+      raycaster.setFromCamera(pointerNDC, camera);
+      if (placeType && ghost && ghost.visible) {
+        const obj = buildPlaceable(placeType);
+        obj.position.copy(ghost.position);
+        obj.rotation.y = Math.round((obj.position.x + obj.position.z) * 2) % 4 * (Math.PI / 4);
+        placeGroup.add(obj);
+        savePlacements();
+        updateVoxelTelemetry();
+        const names = { crate: '📦 CRATE', drum: '🛢️ FUEL DRUM', tent: '⛺ TENT', pylon: '📡 PYLON' };
+        showBanner(`${names[placeType]} PLACED // SAVED (${placeGroup.children.length} TOTAL)`, 2000);
+        return;
+      }
+      // Inspect: click a placed object to identify + pulse it
+      const hits = raycaster.intersectObjects(placeGroup.children, true);
+      if (hits.length) {
+        let root = hits[0].object;
+        while (root.parent && root.parent !== placeGroup) root = root.parent;
+        const names = { crate: 'Supply Crate', drum: 'Fuel Drum', tent: 'Field Tent', pylon: 'Comms Pylon' };
+        const label = names[root.userData.placeType] || 'Object';
+        showBanner(`${label.toUpperCase()} // X ${root.position.x.toFixed(1)} Z ${root.position.z.toFixed(1)}`, 2000);
+        selectPulse.push({ obj: root, t: 0 });
+      }
+    });
+    renderer.domElement.addEventListener('contextmenu', (e) => {
+      if (placeType) { e.preventDefault(); setPlaceTypeSilent(); showBanner('PLACEMENT CANCELLED', 1500); }
+    });
+    loadPlacements();
+
     // Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase();
+      if (key === 'escape') {
+        if (placeType) { setPlaceTypeSilent(); showBanner('PLACEMENT CANCELLED', 1500); }
+        return;
+      }
       if (key === '1') setCameraView('orbit');
       else if (key === '2') setCameraView('front');
       else if (key === '3') setCameraView('top');
       else if (key === '4') setCameraView('engine');
+      else if (key === '5') setCameraView('deck');
+      else if (key === '6') setCameraView('runway');
+      else if (key === '7') setCameraView('target');
+      else if (key === '8') setCameraView('rocks');
       else if (key === 'e') {
         btnExplode.click();
       } else if (key === 'f' || key === ' ') {
@@ -1954,13 +2431,27 @@
       } else if (key === 'r') {
         btnAutoRotate.click();
       } else if (key === 's') {
-        btnFlir.click();
+        if (btnFlirJet) btnFlirJet.click();
+      } else if (key === 't') {
+        if (btnThermal) btnThermal.click();
       } else if (key === 'v') {
         btnEnv.click();
       } else if (key === 'l' || key === 'h') {
         toggleLaunchHold();
       } else if (key === 'n') {
         setFlightMode('parked');
+      } else if (key === 'w' || key === 'arrowup') {
+        e.preventDefault(); walkStep(0, 1, 0, e.shiftKey);
+      } else if (key === 'arrowdown') {
+        e.preventDefault(); walkStep(0, -1, 0, e.shiftKey);
+      } else if (key === 'a' || key === 'arrowleft') {
+        e.preventDefault(); walkStep(-1, 0, 0, e.shiftKey);
+      } else if (key === 'd' || key === 'arrowright') {
+        e.preventDefault(); walkStep(1, 0, 0, e.shiftKey);
+      } else if (key === 'q' || key === 'pageup') {
+        e.preventDefault(); walkStep(0, 0, 1, e.shiftKey);
+      } else if (key === 'z' || key === 'pagedown') {
+        e.preventDefault(); walkStep(0, 0, -1, e.shiftKey);
       }
     });
 
@@ -2147,6 +2638,24 @@
         w.group.position.y = 1.6 + Math.sin(elapsedTime * 1.6 + w.phase) * 0.18 + jetModel.position.y * 0.6;
         w.group.position.z = -3 + Math.sin(elapsedTime * 0.7 + w.phase) * 0.4;
         w.group.rotation.z = Math.sin(elapsedTime * 0.9 + w.phase) * 0.03;
+      }
+
+      // Voxel asteroid belt: tumble + drift + bob (wrap around sky)
+      for (const a of asteroids) {
+        a.rotation.x += a.userData.spin * 0.016;
+        a.rotation.y += a.userData.spin * 0.7 * 0.016;
+        a.position.x += a.userData.drift * 0.016;
+        if (a.position.x > 52) a.position.x = -52;
+        a.position.y = a.userData.baseY + Math.sin(elapsedTime * 0.4 + a.userData.phase) * 0.9;
+      }
+
+      // Placed-object inspect pulse (click feedback)
+      for (let i = selectPulse.length - 1; i >= 0; i--) {
+        const s = selectPulse[i];
+        s.t += 0.06;
+        const k = 1 + Math.sin(Math.min(s.t, 1) * Math.PI) * 0.18;
+        s.obj.scale.setScalar(k);
+        if (s.t >= 1) { s.obj.scale.setScalar(1); selectPulse.splice(i, 1); }
       }
 
       // Target bunker gentle hover marker + shock decay
