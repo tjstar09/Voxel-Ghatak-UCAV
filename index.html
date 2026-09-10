@@ -437,9 +437,13 @@
             <span>🔄 Auto Rotate</span>
             <span class="shortcut-badge">R</span>
           </button>
-          <button id="btn-flir" class="btn" title="Toggle FLIR Wireframe Targeting">
-            <span>🛰️ EO/IR</span>
+          <button id="btn-flir-jet" class="btn" title="Jet-wide FLIR wireframe (whole airframe goes wireframe, scenery untouched — hide it with Scenery V if wanted)">
+            <span>🛰️ FLIR Jet</span>
             <span class="shortcut-badge">S</span>
+          </button>
+          <button id="btn-thermal" class="btn" title="True thermal mode (scene-wide false-color night vision, hot parts glow white-hot)">
+            <span>🌡️ Thermal</span>
+            <span class="shortcut-badge">T</span>
           </button>
           <button id="btn-env" class="btn active" title="Toggle Voxel Environment (deck, base, clouds, wingmen)">
             <span>🏝️ Scenery</span>
@@ -1540,9 +1544,10 @@
       body.push([0, 0.64, 4 * 0.32]);
       glow.push([0, 0.15, -6.6 * 0.32]);
       glow.push([side * 8 * 0.32, 0.15, -1 * 0.32]);
-      buildInstanced(body, 0.3, materials.ramMedium, g);
-      buildInstanced(edge, 0.3, materials.stealthFacet, g);
-      buildInstanced(glow, 0.22, side < 0 ? materials.navRed : materials.navGreen, g);
+      // Cloned skin materials: wingmen stay solid when JET-WIDE FLIR wireframes the shared jet materials.
+      buildInstanced(body, 0.3, materials.ramMedium.clone(), g);
+      buildInstanced(edge, 0.3, materials.stealthFacet.clone(), g);
+      buildInstanced(glow, 0.22, (side < 0 ? materials.navRed : materials.navGreen).clone(), g);
       g.position.set(side * 9, 1.6, -3);
       g.rotation.y = Math.PI;
       envGroup.add(g);
@@ -1899,12 +1904,12 @@
     // 11. Interactive HUD Actions
     let isAutoRotating = true;
     let bayOpen = false;
-    let flirMode = false;
 
     const btnFire = document.getElementById('btn-fire');
     const btnBay = document.getElementById('btn-bay');
     const btnAutoRotate = document.getElementById('btn-autorotate');
-    const btnFlir = document.getElementById('btn-flir');
+    const btnFlirJet = document.getElementById('btn-flir-jet');
+    const btnThermal = document.getElementById('btn-thermal');
     const btnEnv = document.getElementById('btn-env');
     const btnReset = document.getElementById('btn-reset');
     const fpsVal = document.getElementById('fps-val');
@@ -1923,25 +1928,96 @@
       btnAutoRotate.classList.toggle('active', isAutoRotating);
     });
 
-    btnFlir.addEventListener('click', () => {
-      flirMode = !flirMode;
-      btnFlir.classList.toggle('active', flirMode);
-      if (flirMode) {
-        scene.background = new THREE.Color(0x04111d);
-        scene.fog.color = new THREE.Color(0x04111d);
-        materials.ramMedium.wireframe = true;
-        materials.ramLight.wireframe = true;
-        materials.stealthFacet.wireframe = true;
-        materials.eotsGlass.emissiveIntensity = 2.2;
+    // 11A. Sensor modes (mutually exclusive):
+    //  (1) JET-WIDE FLIR — every airframe material goes wireframe; scenery untouched
+    //      (hide scenery with Scenery/V if you want jet-only).
+    //  (2) TRUE THERMAL — scene-wide false-color night vision; hot parts glow white-hot.
+    const JET_FLIR_MATS = [
+      materials.ramDark, materials.ramMedium, materials.ramLight,
+      materials.stealthFacet, materials.serration,
+      materials.eotsTurret, materials.eotsGlass,
+      materials.titaniumAlloy, materials.exhaustShield, materials.thermalGlow,
+      materials.turbineCore, materials.bayInterior,
+      materials.bombBody, materials.bombBand, materials.bombFin, materials.bombSeeker,
+      materials.formationSlime, materials.navRed, materials.navGreen,
+    ];
+    let jetFlirMode = false;
+    let thermalMode = false;
+    const thermalSaved = new Map(); // material -> {color, emissive, emissiveIntensity}
+    const thermalLightsSaved = {};
+    const THERMAL_HOT = new Set([
+      materials.thermalGlow, materials.flameOrange, materials.flameYellow, materials.flameBlue,
+      materials.beaconRed, materials.navRed, materials.navGreen, materials.formationSlime,
+      materials.bombSeeker, materials.edgeCyan, materials.edgeOrange,
+      materials.hullPorthole, materials.eotsGlass,
+    ]);
+
+    function setJetFlir(on) {
+      jetFlirMode = on;
+      if (btnFlirJet) btnFlirJet.classList.toggle('active', on);
+      if (on && thermalMode) setThermal(false);
+      JET_FLIR_MATS.forEach(m => { if (m) m.wireframe = on; });
+      materials.eotsGlass.emissiveIntensity = on ? 2.2 : 0.5;
+      if (!thermalMode) {
+        scene.background = new THREE.Color(on ? 0x04111d : 0x090c10);
+        scene.fog.color = new THREE.Color(on ? 0x04111d : 0x090c10);
+      }
+      if (on) showBanner('JET FLIR ACTIVE // AIRFRAME WIREFRAME — V HIDES SCENERY', 2200);
+    }
+
+    function setThermal(on) {
+      thermalMode = on;
+      if (btnThermal) btnThermal.classList.toggle('active', on);
+      if (on && jetFlirMode) setJetFlir(false);
+      if (on) {
+        // Night-vision wash: cold monochrome everything, white-hot heat sources, dimmed lights.
+        scene.traverse(o => {
+          const m = o.material;
+          if (!m || !('color' in m) || thermalSaved.has(m)) return;
+          thermalSaved.set(m, {
+            color: m.color.clone(),
+            emissive: m.emissive ? m.emissive.clone() : null,
+            emissiveIntensity: m.emissiveIntensity,
+          });
+          if (THERMAL_HOT.has(m)) {
+            m.color.set(0xffffff);
+            if (m.emissive) { m.emissive.set(0xffffff); m.emissiveIntensity = 3.0; }
+          } else {
+            const lum = 0.2126 * m.color.r + 0.7152 * m.color.g + 0.0722 * m.color.b;
+            const cold = 0.04 + Math.min(Math.max(lum, 0), 1) * 0.22;
+            m.color.setRGB(cold * 0.5, cold * 0.85, cold);
+            if (m.emissive) { m.emissive.setRGB(0, 0, 0); m.emissiveIntensity = 0; }
+          }
+        });
+        thermalLightsSaved.ambient = ambientLight.intensity;
+        thermalLightsSaved.sun = sunLight.intensity;
+        thermalLightsSaved.rim = rimLight.intensity;
+        ambientLight.intensity = 0.35;
+        sunLight.intensity = 0.5;
+        rimLight.intensity = 2.2;
+        engineThrustLight.intensity = 6.0;
+        scene.background = new THREE.Color(0x010507);
+        scene.fog.color = new THREE.Color(0x010507);
+        showBanner('THERMAL ACTIVE // WHITE-HOT ENGINE, SEEKERS, BEACONS', 2200);
       } else {
+        thermalSaved.forEach((s, m) => {
+          m.color.copy(s.color);
+          if (m.emissive && s.emissive) m.emissive.copy(s.emissive);
+          if (s.emissiveIntensity !== undefined) m.emissiveIntensity = s.emissiveIntensity;
+        });
+        thermalSaved.clear();
+        if (thermalLightsSaved.ambient !== undefined) {
+          ambientLight.intensity = thermalLightsSaved.ambient;
+          sunLight.intensity = thermalLightsSaved.sun;
+          rimLight.intensity = thermalLightsSaved.rim;
+        }
         scene.background = new THREE.Color(0x090c10);
         scene.fog.color = new THREE.Color(0x090c10);
-        materials.ramMedium.wireframe = false;
-        materials.ramLight.wireframe = false;
-        materials.stealthFacet.wireframe = false;
-        materials.eotsGlass.emissiveIntensity = 0.5;
       }
-    });
+    }
+
+    if (btnFlirJet) btnFlirJet.addEventListener('click', () => setJetFlir(!jetFlirMode));
+    if (btnThermal) btnThermal.addEventListener('click', () => setThermal(!thermalMode));
 
     btnEnv.addEventListener('click', () => {
       envGroup.visible = !envGroup.visible;
@@ -2355,7 +2431,9 @@
       } else if (key === 'r') {
         btnAutoRotate.click();
       } else if (key === 's') {
-        btnFlir.click();
+        if (btnFlirJet) btnFlirJet.click();
+      } else if (key === 't') {
+        if (btnThermal) btnThermal.click();
       } else if (key === 'v') {
         btnEnv.click();
       } else if (key === 'l' || key === 'h') {
